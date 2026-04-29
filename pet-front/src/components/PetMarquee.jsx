@@ -6,7 +6,7 @@ import Fishmarquee from "../assets/Fishmarquee.mp4";
 import Bunnymarquee from "../assets/Bunnymarquee.mp4";
 import Dogtrainingmarquee from "../assets/Dogtrainingmarquee.mp4";
 import Groomingmarquee from "../assets/Groomingmarquee.mp4";
-import petfoodmarquee from "../assets/petfoodmarquee.mp4";
+import petfoodmarquee from "../assets/Petfoodmarquee.mp4";
 
 const PetMarquee = () => {
   const [stopScroll, setStopScroll] = React.useState(false);
