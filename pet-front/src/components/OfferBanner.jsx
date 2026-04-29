@@ -9,7 +9,7 @@ export default function OfferBanner() {
   // 🧠 Fetch active offer from backend
   const fetchActiveOffer = async () => {
     try {
-      const { data } = await axios.get("http://localhost:5008/api/offers");
+      const { data } = await axios.get("https://pet-pal-x74f.onrender.com/api/offers");
       if (data.success && data.offer) {
         setOffer(data.offer);
       } else {
