@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { Wind } from "lucide-react"; // For SuperDog wind animation
 
 import Cat from "../assets/Cat.jpg";
-import Dog from "../assets/dog.jpg";
+import Dog from "../assets/Dog.jpg";
 import Bird from "../assets/bird.jpg";
 import Fish from "../assets/fish.jpg";
 
