@@ -161,7 +161,7 @@ export default function Checkout() {
     try {
       // Step 1️⃣: Create Razorpay order
       const { data } = await axios.post(
-        "http://localhost:5008/api/payments/create-order",
+        "https://pet-pal-x74f.onrender.com/api/payments/create-order",
         { amount: totalPrice }
       );
 
@@ -259,7 +259,7 @@ export default function Checkout() {
     setCouponLoading(true);
     try {
       // Fetch active offer from backend
-      const { data } = await axios.get("http://localhost:5008/api/offers");
+      const { data } = await axios.get("https://pet-pal-x74f.onrender.com/api/offers");
 
       if (!data.success || !data.offer) {
         toast.error("No active offers available");
