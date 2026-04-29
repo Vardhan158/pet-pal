@@ -12,7 +12,7 @@ import Bird from "../assets/Bird.jpg";
 import Fish from "../assets/Fish.jpg";
 
 /* ================= API CONFIG ================= */
-const API_BASE = "http://localhost:5008/api/auth";
+const API_BASE = "https://pet-pal-x74f.onrender.com/api/auth";
 
 export default function LoginSignup() {
   const [isLogin, setIsLogin] = useState(true);
