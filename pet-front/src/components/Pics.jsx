@@ -5,8 +5,8 @@ import { Wind } from "lucide-react"; // For SuperDog wind animation
 
 import Cat from "../assets/Cat.jpg";
 import Dog from "../assets/Dog.jpg";
-import Bird from "../assets/bird.jpg";
-import Fish from "../assets/fish.jpg";
+import Bird from "../assets/Bird.jpg";
+import Fish from "../assets/Fish.jpg";
 
 const Pics = () => {
   const [tilt, setTilt] = useState({});
