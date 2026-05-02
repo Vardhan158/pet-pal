@@ -1,5 +1,5 @@
 // src/context/WishlistContext.jsx
-import React, { createContext, useState, useContext, useEffect } from "react";
+import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
 import { getWishlistFromServer } from "../api/wishlistAPI";
 
 const WishlistContext = createContext();
@@ -17,26 +17,26 @@ export const WishlistProvider = ({ children }) => {
   }, [wishlist]);
 
   // Refresh wishlist from backend (useful after add/remove to keep client in sync)
-  const refreshWishlist = async () => {
+  const refreshWishlist = useCallback(async () => {
     try {
       const items = await getWishlistFromServer();
       setWishlist(items);
     } catch {
       // fail silently - wishlist should still work offline via localStorage
     }
-  };
+  }, []);
 
-  const addToWishlist = (pet) => {
-    if (!wishlist.some((item) => item._id === pet._id)) {
-      setWishlist((prev) => [...prev, pet]);
-    }
-  };
+  const addToWishlist = useCallback((pet) => {
+    setWishlist((prev) => (
+      prev.some((item) => item._id === pet._id) ? prev : [...prev, pet]
+    ));
+  }, []);
 
-  const removeFromWishlist = (id) => {
+  const removeFromWishlist = useCallback((id) => {
     setWishlist((prev) => prev.filter((item) => item._id !== id));
-  };
+  }, []);
 
-  const clearWishlist = () => setWishlist([]);
+  const clearWishlist = useCallback(() => setWishlist([]), []);
 
   return (
     <WishlistContext.Provider

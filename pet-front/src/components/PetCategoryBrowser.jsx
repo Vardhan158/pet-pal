@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Heart, PawPrint, Search, ShoppingCart } from "lucide-react";
+import { Heart, PawPrint, Search, ShoppingCart, SlidersHorizontal } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import axiosInstance from "../api/utils/axiosInstance";
@@ -9,19 +9,144 @@ import { useAuth } from "../context/AuthContext";
 import { useWishlist } from "../context/WishlistContext";
 import PetCategoryFilter from "./PetCategoryFilter";
 
-const FALLBACK_IMAGE =
-  "https://cdn-icons-png.flaticon.com/512/616/616408.png";
+/* ── Inject Poppins ── */
+if (!document.getElementById("pcb-poppins")) {
+  const s = document.createElement("style");
+  s.id = "pcb-poppins";
+  s.innerHTML = `
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
+    .pcb-root, .pcb-root * { font-family: 'Poppins', sans-serif; box-sizing: border-box; }
+
+    .pcb-search-input {
+      width: 100%; padding: 11px 16px 11px 42px;
+      border: 1.5px solid #E5E7EB; border-radius: 14px;
+      font-family: 'Poppins', sans-serif; font-size: 0.88rem;
+      background: #fff; color: #1F2937; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .pcb-search-input:focus {
+      border-color: #38BDF8;
+      box-shadow: 0 0 0 3px rgba(56,189,248,0.12);
+    }
+    .pcb-search-input::placeholder { color: #9CA3AF; }
+
+    .pcb-card {
+      background: #fff; border-radius: 22px;
+      border: 1px solid rgba(0,0,0,0.05);
+      box-shadow: 0 2px 14px rgba(0,0,0,0.06);
+      overflow: hidden; cursor: pointer;
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      display: flex; flex-direction: column;
+    }
+    .pcb-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 16px 40px rgba(14,165,233,0.14);
+    }
+
+    .pcb-add-btn {
+      width: 100%; margin-top: 14px;
+      padding: 10px; border: none; border-radius: 12px;
+      font-family: 'Poppins', sans-serif; font-weight: 600;
+      font-size: 0.85rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+      background: linear-gradient(135deg, #38BDF8, #0EA5E9);
+      color: #fff;
+      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 3px 12px rgba(14,165,233,0.25);
+    }
+    .pcb-add-btn:hover {
+      opacity: 0.93;
+      box-shadow: 0 6px 20px rgba(14,165,233,0.35);
+    }
+    .pcb-add-btn:active { transform: scale(0.97); }
+
+    .pcb-badge {
+      display: inline-flex; align-items: center;
+      padding: 3px 10px; border-radius: 999px;
+      font-size: 0.7rem; font-weight: 600;
+      background: #E0F2FE; color: #0369A1;
+      letter-spacing: 0.02em;
+    }
+
+    .pcb-cart-fab {
+      position: fixed; bottom: 28px; right: 28px; z-index: 50;
+      display: flex; align-items: center; gap: 8px;
+      padding: 13px 22px; border: none; border-radius: 999px;
+      font-family: 'Poppins', sans-serif; font-weight: 700;
+      font-size: 0.9rem; cursor: pointer; color: #fff;
+      background: linear-gradient(135deg, #38BDF8, #0284C7);
+      box-shadow: 0 8px 28px rgba(14,165,233,0.4);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .pcb-cart-fab:hover {
+      transform: scale(1.05);
+      box-shadow: 0 12px 36px rgba(14,165,233,0.5);
+    }
+
+    .pcb-skeleton {
+      background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+      background-size: 200% 100%;
+      animation: pcb-shimmer 1.4s ease infinite;
+      border-radius: 12px;
+    }
+    @keyframes pcb-shimmer {
+      0%   { background-position: 200% center; }
+      100% { background-position: -200% center; }
+    }
+
+    .pcb-wishlist-btn {
+      background: none; border: none; padding: 4px;
+      cursor: pointer; display: flex; align-items: center;
+      transition: transform 0.15s;
+    }
+    .pcb-wishlist-btn:hover { transform: scale(1.2); }
+
+    .pcb-filter-toggle {
+      display: none;
+    }
+    @media (max-width: 767px) {
+      .pcb-filter-toggle { display: flex; }
+    }
+  `;
+  document.head.appendChild(s);
+}
+
+const FALLBACK_IMAGE = "https://cdn-icons-png.flaticon.com/512/616/616408.png";
+
+const fadeInUp = {
+  hidden:  { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0 },
+};
+
+const stagger = {
+  visible: { transition: { staggerChildren: 0.06 } },
+};
+
+function SkeletonCard() {
+  return (
+    <div style={{ background: "#fff", borderRadius: 22, overflow: "hidden", border: "1px solid #F1F5F9" }}>
+      <div className="pcb-skeleton" style={{ height: 200 }} />
+      <div style={{ padding: "16px 18px" }}>
+        <div className="pcb-skeleton" style={{ height: 18, width: "70%", marginBottom: 10 }} />
+        <div className="pcb-skeleton" style={{ height: 13, width: "45%", marginBottom: 16 }} />
+        <div className="pcb-skeleton" style={{ height: 13, width: "90%", marginBottom: 6 }} />
+        <div className="pcb-skeleton" style={{ height: 13, width: "75%", marginBottom: 18 }} />
+        <div className="pcb-skeleton" style={{ height: 38, borderRadius: 12 }} />
+      </div>
+    </div>
+  );
+}
 
 export default function PetCategoryBrowser({
   category,
   title,
   itemLabel,
-  accentClass = "text-cyan-700",
-  accentSoftClass = "border-cyan-200 hover:bg-cyan-50",
-  accentRingClass = "accent-cyan-600",
-  summaryGradientClass = "from-cyan-100 to-blue-100",
-  pageGradientClass = "from-blue-50 via-white to-cyan-50",
-  buttonGradientClass = "from-cyan-500 to-blue-600",
+  accentClass = "text-sky-600",
+  accentSoftClass = "border-sky-200 hover:bg-sky-50",
+  accentRingClass = "accent-sky-500",
+  summaryGradientClass = "from-sky-100 to-blue-100",
+  pageGradientClass = "from-sky-50 via-white to-cyan-50",
+  buttonGradientClass = "from-sky-400 to-blue-500",
 }) {
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -36,297 +161,271 @@ export default function PetCategoryBrowser({
   const { wishlist, refreshWishlist } = useWishlist();
 
   useEffect(() => {
-    if (fetched.current) {
-      return;
-    }
-
+    if (fetched.current) return;
     fetched.current = true;
-
     async function fetchPets() {
       try {
-        const response = await axiosInstance.get(
-          `/pets/approved?category=${encodeURIComponent(category)}`
-        );
+        const response = await axiosInstance.get(`/pets/approved?category=${encodeURIComponent(category)}`);
         const items = response.data?.pets || [];
         const normalized = items.map((pet) => ({
           ...pet,
-          images: Array.isArray(pet.images)
-            ? pet.images
-            : pet.image
-              ? [pet.image]
-              : [],
-          specifications: Array.isArray(pet.specifications)
-            ? pet.specifications
-            : [],
+          images: Array.isArray(pet.images) ? pet.images : pet.image ? [pet.image] : [],
+          specifications: Array.isArray(pet.specifications) ? pet.specifications : [],
         }));
-
         setPets(normalized);
-
-        const highest = Math.max(
-          ...normalized.map((pet) => Number(pet.offerPrice || pet.price || 0)),
-          50000
-        );
+        const highest = Math.max(...normalized.map((p) => Number(p.offerPrice || p.price || 0)), 50000);
         setMaxPrice(highest);
         setPriceRange([0, highest]);
-      } catch (error) {
-        console.error(`Error fetching ${category}:`, error);
+      } catch {
         toast.error(`Failed to load ${itemLabel.toLowerCase()}`);
       } finally {
         setLoading(false);
       }
     }
-
     fetchPets();
   }, [category, itemLabel]);
 
   const filteredPets = useMemo(() => {
     const term = search.trim().toLowerCase();
-
     return pets.filter((pet) => {
-      const searchable = [
-        pet.name,
-        pet.description,
-        pet.category,
-        pet.breed,
-        ...(pet.specifications || []).flatMap((spec) => [spec.label, spec.value]),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      const priceToCheck = Number(pet.offerPrice || pet.price || 0);
-      const matchesSearch = !term || searchable.includes(term);
-      const matchesPrice =
-        priceToCheck >= priceRange[0] && priceToCheck <= priceRange[1];
-
-      return matchesSearch && matchesPrice;
+      const searchable = [pet.name, pet.description, pet.category, pet.breed,
+        ...(pet.specifications || []).flatMap((s) => [s.label, s.value])
+      ].filter(Boolean).join(" ").toLowerCase();
+      const price = Number(pet.offerPrice || pet.price || 0);
+      return (!term || searchable.includes(term)) && price >= priceRange[0] && price <= priceRange[1];
     });
   }, [pets, priceRange, search]);
 
   const handleAddToCart = async (pet) => {
-    if (!user) {
-      toast.error("Please login to add items to cart");
-      navigate("/login");
-      return;
-    }
-
+    if (!user) { toast.error("Please login to add items to cart"); navigate("/login"); return; }
     try {
-      await axiosInstance.post("/cart/add", {
-        petId: pet._id,
-        quantity: 1,
-      });
-
+      await axiosInstance.post("/cart/add", { petId: pet._id, quantity: 1 });
       addToCart(pet._id || pet.id, {
-        petId: pet._id,
-        name: pet.name,
+        petId: pet._id, name: pet.name,
         price: pet.offerPrice || pet.price,
         image: pet.images?.[0] || pet.image,
-        category: pet.category,
-        quantity: 1,
+        category: pet.category, quantity: 1,
       });
-
-      toast.success(`${pet.name} added to cart`);
-    } catch (error) {
-      console.error("Error adding to cart:", error);
-      toast.error("Error adding to cart");
-    }
+      toast.success(`${pet.name} added to cart 🛒`);
+    } catch { toast.error("Error adding to cart"); }
   };
 
   const handleWishlist = async (pet) => {
-    if (!user) {
-      toast.error("Please login to add to wishlist");
-      navigate("/login");
-      return;
-    }
-
-    const alreadyLiked = wishlist.some((item) => item._id === pet._id);
-
+    if (!user) { toast.error("Please login to add to wishlist"); navigate("/login"); return; }
+    const liked = wishlist.some((i) => i._id === pet._id);
     try {
-      if (alreadyLiked) {
+      if (liked) {
         await axiosInstance.delete(`/wishlist/remove/${pet._id}`);
         toast(`${pet.name} removed from wishlist`);
       } else {
         await axiosInstance.post("/wishlist/add", { petId: pet._id });
-        toast.success(`${pet.name} added to wishlist`);
+        toast.success(`${pet.name} added to wishlist ♡`);
       }
-
       await refreshWishlist();
-    } catch (error) {
-      console.error("Error updating wishlist:", error?.response?.data || error);
-      const message = error?.response?.data?.message || "Wishlist update failed";
-      toast.error(message);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Wishlist update failed");
     }
   };
 
-  const fadeInUp = {
-    hidden: { opacity: 0, y: 30 },
-    visible: { opacity: 1, y: 0 },
-  };
-
   return (
-    <div
-      className={`min-h-screen flex flex-col md:flex-row bg-gradient-to-br ${pageGradientClass} overflow-hidden`}
-    >
+    <div className="pcb-root" style={{
+      minHeight: "100vh", display: "flex", flexDirection: "row",
+      background: "linear-gradient(135deg, #F0F9FF 0%, #FFFFFF 50%, #ECFEFF 100%)",
+    }}>
+      {/* Sidebar Filter */}
       <PetCategoryFilter
-        title={title}
-        itemLabel={itemLabel}
-        accentClass={accentClass}
-        accentSoftClass={accentSoftClass}
-        accentRingClass={accentRingClass}
-        summaryGradientClass={summaryGradientClass}
-        showFilters={showFilters}
-        setShowFilters={setShowFilters}
-        priceRange={priceRange}
-        maxPrice={maxPrice}
+        title={title} itemLabel={itemLabel}
+        accentClass={accentClass} accentSoftClass={accentSoftClass}
+        accentRingClass={accentRingClass} summaryGradientClass={summaryGradientClass}
+        showFilters={showFilters} setShowFilters={setShowFilters}
+        priceRange={priceRange} maxPrice={maxPrice}
         onPriceChange={setPriceRange}
-        totalCount={pets.length}
-        availableCount={filteredPets.length}
+        totalCount={pets.length} availableCount={filteredPets.length}
       />
 
-      <div className="flex-1 py-8 px-4 sm:px-6 lg:px-10">
-        <motion.div
-          variants={fadeInUp}
-          initial="hidden"
-          animate="visible"
-          transition={{ duration: 0.5 }}
-          className="text-center mb-10"
-        >
-          <h1
-            className={`text-3xl sm:text-4xl font-extrabold flex justify-center items-center gap-3 ${accentClass}`}
-          >
-            <PawPrint className="w-7 h-7 sm:w-8 sm:h-8" />
-            Explore {title}
+      {/* Main Content */}
+      <div style={{ flex: 1, padding: "40px 28px 80px", maxWidth: "100%" }}>
+
+        {/* Header */}
+        <motion.div variants={fadeInUp} initial="hidden" animate="visible"
+          transition={{ duration: 0.5 }} style={{ textAlign: "center", marginBottom: 40 }}>
+
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8,
+            background: "#E0F2FE", borderRadius: 999, padding: "5px 16px",
+            marginBottom: 14, border: "1px solid #BAE6FD" }}>
+            <PawPrint size={14} color="#0284C7" />
+            <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#0369A1",
+              letterSpacing: "0.06em", textTransform: "uppercase" }}>
+              {title}
+            </span>
+          </div>
+
+          <h1 style={{ fontSize: "clamp(1.7rem, 4vw, 2.6rem)", fontWeight: 800,
+            color: "#0C1A2E", margin: "0 0 10px", letterSpacing: "-0.03em", lineHeight: 1.15 }}>
+            Explore <span style={{ color: "#0EA5E9" }}>{title}</span>
           </h1>
-          <p className="text-gray-600 mt-2 text-base sm:text-lg max-w-2xl mx-auto">
-            Browse verified listings, compare prices, and find the right match for
-            your home.
+          <p style={{ color: "#6B7280", fontSize: "0.95rem", maxWidth: 520,
+            margin: "0 auto 28px", lineHeight: 1.7, fontWeight: 400 }}>
+            Browse verified listings, compare prices, and find your perfect companion.
           </p>
 
-          <div className="mt-6 flex justify-center">
-            <div className="relative w-full max-w-md">
-              <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
+          {/* Search bar */}
+          <div style={{ display: "flex", gap: 10, maxWidth: 520, margin: "0 auto", alignItems: "center" }}>
+            <div style={{ position: "relative", flex: 1 }}>
+              <Search size={16} color="#9CA3AF" style={{
+                position: "absolute", left: 14, top: "50%",
+                transform: "translateY(-50%)", pointerEvents: "none",
+              }} />
               <input
                 type="text"
-                placeholder={`Search ${itemLabel.toLowerCase()} by name, breed, or description...`}
+                className="pcb-search-input"
+                placeholder={`Search ${itemLabel.toLowerCase()}…`}
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 bg-white/80 backdrop-blur-md focus:ring-2 focus:ring-cyan-500 outline-none transition text-sm sm:text-base"
+                onChange={(e) => setSearch(e.target.value)}
               />
             </div>
+            {/* Mobile filter toggle */}
+            <button className="pcb-filter-toggle" onClick={() => setShowFilters(true)}
+              style={{
+                padding: "10px 14px", borderRadius: 12,
+                border: "1.5px solid #E5E7EB", background: "#fff",
+                cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+                fontSize: "0.82rem", fontWeight: 600, color: "#374151",
+                fontFamily: "'Poppins', sans-serif",
+              }}>
+              <SlidersHorizontal size={15} /> Filters
+            </button>
           </div>
+
+          {/* Result count */}
+          {!loading && (
+            <p style={{ marginTop: 14, fontSize: "0.8rem", color: "#9CA3AF", fontWeight: 500 }}>
+              Showing <strong style={{ color: "#0EA5E9" }}>{filteredPets.length}</strong> of {pets.length} {itemLabel.toLowerCase()}
+            </p>
+          )}
         </motion.div>
 
+        {/* Grid */}
         {loading ? (
-          <p className="text-center text-gray-500 text-lg animate-pulse mt-20">
-            Loading {itemLabel.toLowerCase()}...
-          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 22 }}>
+            {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
+          </div>
         ) : filteredPets.length === 0 ? (
-          <p className="text-center text-gray-400 text-lg mt-20">
-            No {itemLabel.toLowerCase()} match your filters.
-          </p>
+          <div style={{ textAlign: "center", padding: "80px 24px" }}>
+            <div style={{ fontSize: "3.5rem", marginBottom: 16 }}>🐾</div>
+            <p style={{ color: "#9CA3AF", fontSize: "1rem", fontWeight: 500 }}>
+              No {itemLabel.toLowerCase()} match your search.
+            </p>
+          </div>
         ) : (
           <motion.div
-            layout
-            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8"
+            variants={stagger} initial="hidden" animate="visible"
+            style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 22 }}
           >
             {filteredPets.map((pet, index) => {
-              const isLiked = wishlist.some((item) => item._id === pet._id);
+              const isLiked = wishlist.some((i) => i._id === pet._id);
               const image = pet.images?.[0] || pet.image || FALLBACK_IMAGE;
               const displayPrice = pet.offerPrice || pet.price;
+              const hasDiscount = pet.offerPrice && pet.offerPrice > 0 && pet.offerPrice < pet.price;
 
               return (
                 <motion.div
                   key={pet._id}
                   variants={fadeInUp}
-                  initial="hidden"
-                  animate="visible"
-                  transition={{ delay: index * 0.06 }}
-                  whileHover={{ scale: 1.03 }}
-                  className="relative bg-white/95 backdrop-blur-lg rounded-2xl shadow-md hover:shadow-xl overflow-hidden border border-gray-100 transition-all cursor-pointer"
+                  transition={{ delay: index * 0.05, duration: 0.4 }}
+                  className="pcb-card"
                   onClick={() => navigate(`/pets/${pet._id}`)}
                 >
-                  <div className="relative h-52 sm:h-60 md:h-64 overflow-hidden bg-gradient-to-br from-cyan-100 to-blue-100">
+                  {/* Image */}
+                  <div style={{ position: "relative", height: 196, overflow: "hidden",
+                    background: "linear-gradient(135deg, #E0F2FE, #CFFAFE)" }}>
                     <motion.img
-                      src={image}
-                      alt={pet.name}
-                      className="object-cover w-full h-full"
-                      whileHover={{ scale: 1.1 }}
-                      transition={{ duration: 0.5 }}
+                      src={image} alt={pet.name}
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                      whileHover={{ scale: 1.08 }}
+                      transition={{ duration: 0.45 }}
                     />
+                    {/* Discount badge */}
+                    {hasDiscount && (
+                      <div style={{
+                        position: "absolute", top: 10, left: 10,
+                        background: "linear-gradient(135deg, #0EA5E9, #38BDF8)",
+                        color: "#fff", borderRadius: 8, padding: "3px 9px",
+                        fontSize: "0.7rem", fontWeight: 700,
+                      }}>
+                        {Math.round((1 - pet.offerPrice / pet.price) * 100)}% OFF
+                      </div>
+                    )}
+                    {/* Wishlist */}
+                    <button
+                      className="pcb-wishlist-btn"
+                      style={{
+                        position: "absolute", top: 10, right: 10,
+                        background: "rgba(255,255,255,0.88)", borderRadius: "50%",
+                        width: 34, height: 34, backdropFilter: "blur(4px)",
+                      }}
+                      onClick={(e) => { e.stopPropagation(); handleWishlist(pet); }}
+                    >
+                      <Heart
+                        size={16}
+                        fill={isLiked ? "#EF4444" : "none"}
+                        color={isLiked ? "#EF4444" : "#9CA3AF"}
+                        strokeWidth={2}
+                      />
+                    </button>
                   </div>
 
-                  <div className="p-4 sm:p-5">
-                    <h2 className="text-lg sm:text-xl font-semibold text-gray-800 truncate">
-                      {pet.name}
-                    </h2>
-                    <p className="text-gray-500 text-xs sm:text-sm mt-1">
-                      {pet.category}
-                    </p>
+                  {/* Body */}
+                  <div style={{ padding: "16px 18px 18px", flex: 1, display: "flex", flexDirection: "column" }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                      <h2 style={{ margin: 0, fontSize: "0.97rem", fontWeight: 700,
+                        color: "#0C1A2E", lineHeight: 1.3,
+                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                        {pet.name}
+                      </h2>
+                      <span className="pcb-badge">{pet.category}</span>
+                    </div>
 
-                    <div className="text-xs text-gray-600 mt-2 space-y-1 min-h-[3rem]">
+                    {/* Specs */}
+                    <div style={{ marginTop: 10, flex: 1, minHeight: 40 }}>
                       {pet.specifications.length > 0 ? (
-                        pet.specifications.slice(0, 2).map((spec, specIndex) => (
-                          <p key={`${pet._id}-spec-${specIndex}`}>
-                            <strong>{spec.label}:</strong> {spec.value}
+                        pet.specifications.slice(0, 2).map((spec, si) => (
+                          <p key={si} style={{ margin: "0 0 4px", fontSize: "0.76rem", color: "#6B7280" }}>
+                            <span style={{ fontWeight: 600, color: "#374151" }}>{spec.label}:</span> {spec.value}
                           </p>
                         ))
                       ) : (
                         <>
-                          {pet.breed && (
-                            <p>
-                              <strong>Breed:</strong> {pet.breed}
-                            </p>
-                          )}
-                          {pet.age && (
-                            <p>
-                              <strong>Age:</strong> {pet.age}
-                            </p>
-                          )}
+                          {pet.breed && <p style={{ margin: "0 0 4px", fontSize: "0.76rem", color: "#6B7280" }}>
+                            <span style={{ fontWeight: 600, color: "#374151" }}>Breed:</span> {pet.breed}
+                          </p>}
+                          {pet.age && <p style={{ margin: 0, fontSize: "0.76rem", color: "#6B7280" }}>
+                            <span style={{ fontWeight: 600, color: "#374151" }}>Age:</span> {pet.age}
+                          </p>}
                         </>
                       )}
                     </div>
 
-                    <div className="mt-4 space-y-2">
-                      <div className="flex items-center gap-2">
-                        {pet.offerPrice && pet.offerPrice > 0 ? (
-                          <>
-                            <p className="text-xs text-gray-400 line-through">
-                              Rs.{Number(pet.price || 0).toLocaleString()}
-                            </p>
-                            <p className={`text-base sm:text-lg font-bold ${accentClass}`}>
-                              Rs.{Number(displayPrice || 0).toLocaleString()}
-                            </p>
-                          </>
-                        ) : (
-                          <p className={`text-base sm:text-lg font-bold ${accentClass}`}>
-                            Rs.{Number(displayPrice || 0).toLocaleString()}
-                          </p>
-                        )}
-
-                        <Heart
-                          fill={isLiked ? "red" : "none"}
-                          strokeWidth={1.5}
-                          className={`transition cursor-pointer ml-auto ${
-                            isLiked ? "text-red-500" : "text-gray-400 hover:text-red-500"
-                          }`}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleWishlist(pet);
-                          }}
-                        />
-                      </div>
+                    {/* Price */}
+                    <div style={{ marginTop: 14, display: "flex", alignItems: "baseline", gap: 7 }}>
+                      {hasDiscount && (
+                        <span style={{ fontSize: "0.78rem", color: "#9CA3AF",
+                          textDecoration: "line-through", fontWeight: 500 }}>
+                          ₹{Number(pet.price || 0).toLocaleString()}
+                        </span>
+                      )}
+                      <span style={{ fontSize: "1.15rem", fontWeight: 800, color: "#0284C7" }}>
+                        ₹{Number(displayPrice || 0).toLocaleString()}
+                      </span>
                     </div>
 
+                    {/* Add to cart */}
                     <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        handleAddToCart(pet);
-                      }}
-                      className={`w-full mt-3 bg-gradient-to-r ${buttonGradientClass} text-white py-2 rounded-lg font-semibold hover:shadow-lg transition flex items-center justify-center gap-2`}
+                      className="pcb-add-btn"
+                      whileTap={{ scale: 0.97 }}
+                      onClick={(e) => { e.stopPropagation(); handleAddToCart(pet); }}
                     >
-                      <ShoppingCart size={16} /> Add to Cart
+                      <ShoppingCart size={15} /> Add to Cart
                     </motion.button>
                   </div>
                 </motion.div>
@@ -336,22 +435,27 @@ export default function PetCategoryBrowser({
         )}
       </div>
 
+      {/* Floating Cart FAB */}
       {totalItems > 0 && (
-        <motion.div
+        <motion.button
+          className="pcb-cart-fab"
           initial={{ opacity: 0, y: 60 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ type: "spring", stiffness: 100 }}
-          className="fixed bottom-6 right-6 z-50"
+          transition={{ type: "spring", stiffness: 120 }}
+          whileHover={{ scale: 1.06 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => navigate("/cart")}
         >
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => navigate("/cart")}
-            className={`flex items-center gap-2 bg-gradient-to-r ${buttonGradientClass} text-white text-sm sm:text-base font-semibold py-3 px-5 sm:px-6 rounded-full shadow-xl hover:shadow-2xl transition-all`}
-          >
-            <ShoppingCart size={20} /> Cart ({totalItems})
-          </motion.button>
-        </motion.div>
+          <ShoppingCart size={18} />
+          Cart
+          <span style={{
+            background: "#fff", color: "#0284C7",
+            borderRadius: "999px", fontWeight: 800,
+            fontSize: "0.78rem", padding: "1px 8px", marginLeft: 2,
+          }}>
+            {totalItems}
+          </span>
+        </motion.button>
       )}
     </div>
   );

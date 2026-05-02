@@ -5,57 +5,44 @@ import toast from "react-hot-toast";
 import { motion } from "framer-motion";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
+import { ShoppingCart, ArrowLeft, Tag, CheckCircle } from "lucide-react";
 
-// avoid linter false-positive
 void motion;
 
-import { ShoppingCart, ArrowLeft } from "lucide-react";
+const normalizeDog = (d) => {
+  if (!d) return null;
+  const copy = { ...d };
+  copy.id    = copy._id || copy.id;
+  copy.title = copy.name || copy.title || "Dog";
+  copy.type  = copy.category || copy.type || "Unknown";
+  if (!Array.isArray(copy.images)) {
+    if (copy.image)                 copy.images = [copy.image];
+    else if (copy.additionalImages) copy.images = Array.isArray(copy.additionalImages) ? copy.additionalImages : [];
+    else                            copy.images = [];
+  }
+  if (!Array.isArray(copy.specifications)) copy.specifications = [];
+  return copy;
+};
 
 export default function DogDetails() {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const { addToCart } = useCart();
-  const [dog, setDog] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [thumbnail, setThumbnail] = useState(null);
+  const { id }          = useParams();
+  const navigate        = useNavigate();
+  const { user }        = useAuth();
+  const { addToCart }   = useCart();
+  const [dog, setDog]   = useState(null);
+  const [loading, setLoading]         = useState(true);
+  const [thumbnail, setThumbnail]     = useState(null);
   const [addingToCart, setAddingToCart] = useState(false);
 
-  // normalize pet object so UI can rely on consistent keys
-  const normalizeDog = (d) => {
-    if (!d) return null;
-    const copy = { ...d };
-    copy.id = copy._id || copy.id;
-    copy.title = copy.name || copy.title || "Dog";
-    copy.type = copy.category || copy.type || "Unknown";
-
-    // images: normalize to array
-    if (!Array.isArray(copy.images)) {
-      if (copy.image) copy.images = [copy.image];
-      else if (copy.additionalImages) copy.images = Array.isArray(copy.additionalImages) ? copy.additionalImages : [];
-      else copy.images = [];
-    }
-
-    // specifications: ensure array of {label,value}
-    if (!Array.isArray(copy.specifications)) {
-      copy.specifications = [];
-    }
-
-    return copy;
-  };
-
-  // 🐶 Fetch single dog details
   useEffect(() => {
     async function fetchDog() {
       try {
-        const res = await axiosInstance.get(`/pets/${id}`);
-        const data = res.data.pet;
-        const normalized = normalizeDog(data);
+        const res        = await axiosInstance.get(`/pets/${id}`);
+        const normalized = normalizeDog(res.data.pet);
         setDog(normalized);
-        setThumbnail((normalized?.images?.[0]) || "");
-      } catch (err) {
-        console.error("❌ Error fetching dog details:", err);
-        toast.error("Failed to load dog details 🐾");
+        setThumbnail(normalized?.images?.[0] || "");
+      } catch {
+        toast.error("Failed to load dog details");
       } finally {
         setLoading(false);
       }
@@ -63,199 +50,446 @@ export default function DogDetails() {
     fetchDog();
   }, [id]);
 
-  // 🛒 ADD TO CART
   const handleAddToCart = async () => {
-    if (!user) {
-      toast.error("Please login to add items to cart 🔐");
-      navigate("/login");
-      return;
-    }
-
+    if (!user) { toast.error("Please login to add items to cart"); navigate("/login"); return; }
     setAddingToCart(true);
     try {
-      const payload = {
-        petId: dog._id || dog.id,
-        quantity: 1,
-      };
-
-      await axiosInstance.post("/cart/add", payload);
+      await axiosInstance.post("/cart/add", { petId: dog._id || dog.id, quantity: 1 });
       addToCart(dog._id || dog.id, {
-        petId: dog._id || dog.id,
-        name: dog.name,
-        price: dog.offerPrice && dog.offerPrice > 0 ? dog.offerPrice : dog.price,
-        image: dog.images?.[0],
+        petId:    dog._id || dog.id,
+        name:     dog.name,
+        price:    dog.offerPrice && dog.offerPrice > 0 ? dog.offerPrice : dog.price,
+        image:    dog.images?.[0],
         category: dog.category,
         quantity: 1,
       });
-      toast.success(`${dog.name} added to cart 🐾`);
-    } catch (err) {
-      console.error("Error adding to cart:", err);
-      toast.error("Failed to add to cart ❌");
+      toast.success(`${dog.name} added to cart`);
+    } catch {
+      toast.error("Failed to add to cart");
     } finally {
       setAddingToCart(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen text-gray-500">
-        Loading dog details...
+  /* ── Loading ── */
+  if (loading) return (
+    <>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');`}</style>
+      <div style={{ fontFamily:"'Poppins',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", color:"#9499b0", fontSize:"0.9rem" }}>
+        Loading dog details…
       </div>
-    );
-  }
+    </>
+  );
 
-  if (!dog) {
-    return (
-      <div className="flex flex-col justify-center items-center h-screen text-gray-500">
-        <p>Dog not found 🐶</p>
-        <button
-          onClick={() => navigate(-1)}
-          className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition"
-        >
+  /* ── Not found ── */
+  if (!dog) return (
+    <>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');`}</style>
+      <div style={{ fontFamily:"'Poppins',sans-serif", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"100vh", gap:"1rem" }}>
+        <div style={{ fontSize:"3rem" }}>🐶</div>
+        <p style={{ color:"#9499b0", fontSize:"0.95rem" }}>Dog not found</p>
+        <button onClick={() => navigate(-1)} style={{ background:"linear-gradient(135deg,#f5a623,#f76b1c)", color:"#fff", border:"none", borderRadius:12, padding:"0.6rem 1.5rem", fontFamily:"'Poppins',sans-serif", fontWeight:600, cursor:"pointer", fontSize:"0.85rem" }}>
           Go Back
         </button>
       </div>
-    );
-  }
+    </>
+  );
 
-  const images = (dog.images || []).filter(Boolean);
+  const images         = (dog.images || []).filter(Boolean);
   const descriptionList = dog.description
     ? dog.description.split(".").filter((d) => d.trim().length > 0)
     : ["No detailed description available."];
+  const hasOffer       = dog.offerPrice && dog.offerPrice > 0;
+  const discountPct    = hasOffer ? Math.round(((dog.price - dog.offerPrice) / dog.price) * 100) : 0;
 
   return (
-    <div className="max-w-6xl w-full px-6 py-8 mx-auto">
-      {/* 🏠 Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-gray-500 mb-6">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-1 text-blue-600 hover:underline"
-        >
-          <ArrowLeft size={16} /> Back
-        </button>
-        <span>/</span>
-        <span> Dogs </span>
-        <span>/</span>
-        <span className="text-indigo-500 font-medium truncate max-w-[200px]">
-          {dog.name}
-        </span>
-      </div>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
-      {/* 🐕 Dog Info Layout */}
-      <div className="flex flex-col md:flex-row gap-12">
-        {/* 🖼 Image Section */}
-        <div className="flex gap-4">
-          <div className="flex flex-col gap-3">
-            {images.map((img, index) => (
-              <motion.div
-                key={index}
-                onClick={() => setThumbnail(img)}
-                whileHover={{ scale: 1.05 }}
-                className={`border ${
-                  thumbnail === img ? "border-blue-500" : "border-gray-300"
-                } rounded-lg overflow-hidden cursor-pointer w-20 h-20`}
-              >
-                <img
-                  src={img}
-                  alt={`Thumbnail ${index + 1}`}
-                  className="object-cover w-full h-full"
-                />
-              </motion.div>
-            ))}
-          </div>
+        * { box-sizing: border-box; }
 
-          <div className="border border-gray-300 rounded-lg overflow-hidden max-w-[400px]">
-            <motion.img
-              key={thumbnail}
-              src={
-                thumbnail ||
-                "https://cdn-icons-png.flaticon.com/512/616/616408.png"
-              }
-              alt="Selected Dog"
-              className="w-full h-full object-cover"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.4 }}
-            />
-          </div>
-        </div>
+        .dd-root {
+          font-family: 'Poppins', sans-serif;
+          max-width: 1100px;
+          margin: 0 auto;
+          padding: 2rem 1.5rem 4rem;
+        }
 
-        {/* 📝 Details Section */}
-        <div className="w-full md:w-1/2 text-sm">
-          <h1 className="text-3xl font-semibold">{dog.name}</h1>
-          <p className="text-gray-500 text-base mt-1">{dog.category}</p>
+        /* ── Breadcrumb ── */
+        .dd-breadcrumb {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 0.78rem;
+          color: #9499b0;
+          margin-bottom: 2rem;
+        }
+        .dd-back-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          background: none;
+          border: none;
+          font-family: 'Poppins', sans-serif;
+          font-size: 0.78rem;
+          font-weight: 500;
+          color: #f76b1c;
+          cursor: pointer;
+          padding: 0;
+        }
+        .dd-back-btn:hover { text-decoration: underline; }
+        .dd-breadcrumb-current { color: #1a1a2e; font-weight: 500; }
 
-          <div className="mt-6">
-            {dog.offerPrice && dog.offerPrice > 0 ? (
-              <>
-                <p className="text-gray-500/70 line-through">
-                  MRP: ₹{dog.price}
-                </p>
-                <p className="text-2xl font-medium text-blue-600">
-                  ₹{dog.offerPrice}
-                </p>
-              </>
-            ) : (
-              <p className="text-2xl font-medium text-blue-600">₹{dog.price}</p>
-            )}
-            <p className="text-gray-500/70">(Inclusive of all taxes)</p>
-          </div>
+        /* ── Main layout ── */
+        .dd-layout {
+          display: flex;
+          flex-direction: column;
+          gap: 2.5rem;
+        }
+        @media (min-width: 768px) {
+          .dd-layout { flex-direction: row; gap: 3rem; }
+        }
 
-          <div className="mt-6">
-            <p className="text-base font-medium mb-2">About This Dog</p>
-            <ul className="list-disc ml-4 text-gray-600 leading-relaxed">
-              {descriptionList.map((desc, index) => (
-                <li key={index}>{desc}</li>
-              ))}
-            </ul>
-          </div>
+        /* ── Image panel ── */
+        .dd-image-panel {
+          display: flex;
+          gap: 12px;
+          flex-shrink: 0;
+        }
 
-          {/* 🔧 Specifications */}
-          {Array.isArray(dog.specifications) && dog.specifications.length > 0 && (
-            <div className="mt-8 border-t pt-4">
-              <h3 className="text-lg font-semibold mb-3 text-gray-800">
-                Specifications 📋
-              </h3>
-              <div className="grid grid-cols-2 gap-3 text-gray-600 text-sm">
-                {dog.specifications.map((spec, i) => (
-                  <div key={i} className="flex justify-between border-b py-1">
-                    <span className="font-medium">{spec.label || `Spec ${i + 1}`}</span>
-                    <span>{spec.value || "N/A"}</span>
-                  </div>
+        .dd-thumbnails {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .dd-thumb {
+          width: 68px; height: 68px;
+          border-radius: 12px;
+          overflow: hidden;
+          cursor: pointer;
+          border: 2px solid #eef0f6;
+          transition: border-color 0.2s, box-shadow 0.2s;
+          flex-shrink: 0;
+        }
+        .dd-thumb.active {
+          border-color: #f5a623;
+          box-shadow: 0 0 0 3px rgba(245,166,35,0.18);
+        }
+        .dd-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+        .dd-main-image {
+          border-radius: 20px;
+          overflow: hidden;
+          border: 1px solid #eef0f6;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.07);
+          width: 100%;
+          max-width: 400px;
+          aspect-ratio: 1;
+          background: #f8f9fc;
+          position: relative;
+        }
+        .dd-main-image img {
+          width: 100%; height: 100%;
+          object-fit: cover;
+        }
+
+        .dd-discount-badge {
+          position: absolute;
+          top: 14px; left: 14px;
+          background: linear-gradient(135deg, #f5a623, #f76b1c);
+          color: #fff;
+          font-size: 0.72rem;
+          font-weight: 700;
+          padding: 4px 10px;
+          border-radius: 99px;
+          letter-spacing: 0.3px;
+        }
+
+        /* ── Detail panel ── */
+        .dd-detail {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .dd-category {
+          display: inline-block;
+          font-size: 0.72rem;
+          font-weight: 600;
+          background: #fff0e0;
+          color: #c2590a;
+          padding: 3px 10px;
+          border-radius: 99px;
+          margin-bottom: 0.65rem;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .dd-name {
+          font-size: 1.75rem;
+          font-weight: 700;
+          color: #1a1a2e;
+          letter-spacing: -0.5px;
+          margin-bottom: 1.25rem;
+          line-height: 1.2;
+        }
+
+        /* ── Price block ── */
+        .dd-price-block {
+          background: #fdf9f5;
+          border: 1px solid #f0e0c8;
+          border-radius: 14px;
+          padding: 1rem 1.25rem;
+          margin-bottom: 1.5rem;
+          display: inline-flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        .dd-price-mrp {
+          font-size: 0.8rem;
+          color: #b8bdd0;
+          text-decoration: line-through;
+        }
+        .dd-price-main {
+          font-size: 1.9rem;
+          font-weight: 700;
+          color: #f76b1c;
+          letter-spacing: -0.5px;
+          line-height: 1.1;
+        }
+        .dd-price-tax {
+          font-size: 0.72rem;
+          color: #9499b0;
+          margin-top: 2px;
+        }
+
+        /* ── Description ── */
+        .dd-section-title {
+          font-size: 0.85rem;
+          font-weight: 600;
+          color: #1a1a2e;
+          margin-bottom: 0.65rem;
+        }
+        .dd-desc-list {
+          list-style: none;
+          padding: 0; margin: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          margin-bottom: 1.5rem;
+        }
+        .dd-desc-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+          font-size: 0.83rem;
+          color: #5a607a;
+          line-height: 1.5;
+        }
+        .dd-desc-icon {
+          color: #f5a623;
+          flex-shrink: 0;
+          margin-top: 2px;
+        }
+
+        /* ── Specifications ── */
+        .dd-specs {
+          border-top: 1px solid #eef0f6;
+          padding-top: 1.25rem;
+          margin-bottom: 1.5rem;
+        }
+        .dd-specs-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 6px;
+        }
+        .dd-spec-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          background: #f8f9fc;
+          border-radius: 8px;
+          padding: 7px 10px;
+          font-size: 0.78rem;
+        }
+        .dd-spec-label { color: #9499b0; }
+        .dd-spec-value { color: #1a1a2e; font-weight: 500; }
+
+        /* ── Buttons ── */
+        .dd-buttons {
+          display: flex;
+          gap: 10px;
+          margin-top: 1.75rem;
+        }
+
+        .dd-btn-cart {
+          flex: 1;
+          padding: 0.85rem;
+          font-family: 'Poppins', sans-serif;
+          font-size: 0.88rem;
+          font-weight: 600;
+          color: #c2590a;
+          background: #fff0e0;
+          border: 1.5px solid #f0d5b0;
+          border-radius: 13px;
+          cursor: pointer;
+          transition: background 0.15s, transform 0.1s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+        }
+        .dd-btn-cart:hover:not(:disabled) { background: #ffe4c0; }
+        .dd-btn-cart:active:not(:disabled) { transform: scale(0.97); }
+        .dd-btn-cart:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .dd-btn-buy {
+          flex: 1;
+          padding: 0.85rem;
+          font-family: 'Poppins', sans-serif;
+          font-size: 0.88rem;
+          font-weight: 600;
+          color: #fff;
+          background: linear-gradient(135deg, #f5a623 0%, #f76b1c 100%);
+          border: none;
+          border-radius: 13px;
+          cursor: pointer;
+          transition: opacity 0.15s, transform 0.1s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+        }
+        .dd-btn-buy:hover { opacity: 0.92; }
+        .dd-btn-buy:active { transform: scale(0.97); }
+
+        @media (max-width: 480px) {
+          .dd-name { font-size: 1.4rem; }
+          .dd-specs-grid { grid-template-columns: 1fr; }
+          .dd-main-image { max-width: 100%; }
+          .dd-buttons { flex-direction: column; }
+        }
+      `}</style>
+
+      <div className="dd-root">
+
+        {/* Breadcrumb */}
+        <nav className="dd-breadcrumb">
+          <button className="dd-back-btn" onClick={() => navigate(-1)}>
+            <ArrowLeft size={13} /> Back
+          </button>
+          <span>/</span>
+          <span>Dogs</span>
+          <span>/</span>
+          <span className="dd-breadcrumb-current">{dog.name}</span>
+        </nav>
+
+        <div className="dd-layout">
+
+          {/* ── Image panel ── */}
+          <div className="dd-image-panel">
+            {images.length > 1 && (
+              <div className="dd-thumbnails">
+                {images.map((img, i) => (
+                  <motion.div
+                    key={i}
+                    className={`dd-thumb ${thumbnail === img ? "active" : ""}`}
+                    onClick={() => setThumbnail(img)}
+                    whileHover={{ scale: 1.05 }}
+                  >
+                    <img src={img} alt={`Thumbnail ${i + 1}`} />
+                  </motion.div>
                 ))}
               </div>
+            )}
+
+            <div className="dd-main-image">
+              <motion.img
+                key={thumbnail}
+                src={thumbnail || "https://cdn-icons-png.flaticon.com/512/616/616408.png"}
+                alt={dog.name}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.35 }}
+              />
+              {hasOffer && (
+                <div className="dd-discount-badge">{discountPct}% OFF</div>
+              )}
             </div>
-          )}
+          </div>
 
-          {/* Buttons */}
-          <div className="flex items-center mt-10 gap-4 text-base">
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={handleAddToCart}
-              disabled={addingToCart}
-              className="w-full py-3.5 font-medium bg-gray-100 text-gray-800/80 hover:bg-gray-200 disabled:opacity-50 transition rounded-lg"
-            >
-              {addingToCart ? "Adding..." : "Add to Cart"}
-            </motion.button>
+          {/* ── Detail panel ── */}
+          <div className="dd-detail">
+            <span className="dd-category">{dog.category}</span>
+            <h1 className="dd-name">{dog.name}</h1>
 
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => {
-                toast.success("Proceeding to checkout 🐶", {
-                  id: "checkout-toast",
-                });
-                setTimeout(() => navigate("/checkout", { state: { dog } }), 1200);
-              }}
-              className="w-full py-3.5 font-medium bg-indigo-500 text-white hover:bg-indigo-600 transition rounded-lg flex items-center justify-center gap-2"
-            >
-              <ShoppingCart size={18} /> Buy Now
-            </motion.button>
+            {/* Price */}
+            <div className="dd-price-block">
+              {hasOffer && (
+                <span className="dd-price-mrp">MRP ₹{dog.price}</span>
+              )}
+              <span className="dd-price-main">
+                ₹{hasOffer ? dog.offerPrice : dog.price}
+              </span>
+              <span className="dd-price-tax">Inclusive of all taxes</span>
+            </div>
+
+            {/* Description */}
+            <p className="dd-section-title">About This Dog</p>
+            <ul className="dd-desc-list">
+              {descriptionList.map((desc, i) => (
+                <li key={i} className="dd-desc-item">
+                  <CheckCircle size={14} className="dd-desc-icon" />
+                  {desc.trim()}
+                </li>
+              ))}
+            </ul>
+
+            {/* Specifications */}
+            {dog.specifications.length > 0 && (
+              <div className="dd-specs">
+                <p className="dd-section-title" style={{ marginBottom: "0.75rem" }}>
+                  Specifications
+                </p>
+                <div className="dd-specs-grid">
+                  {dog.specifications.map((spec, i) => (
+                    <div key={i} className="dd-spec-row">
+                      <span className="dd-spec-label">{spec.label || `Spec ${i + 1}`}</span>
+                      <span className="dd-spec-value">{spec.value || "N/A"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Buttons */}
+            <div className="dd-buttons">
+              <motion.button
+                className="dd-btn-cart"
+                onClick={handleAddToCart}
+                disabled={addingToCart}
+                whileTap={{ scale: 0.97 }}
+              >
+                <Tag size={16} />
+                {addingToCart ? "Adding…" : "Add to Cart"}
+              </motion.button>
+
+              <motion.button
+                className="dd-btn-buy"
+                whileTap={{ scale: 0.97 }}
+                onClick={() => {
+                  toast.success("Proceeding to checkout");
+                  setTimeout(() => navigate("/checkout", { state: { dog } }), 1100);
+                }}
+              >
+                <ShoppingCart size={16} />
+                Buy Now
+              </motion.button>
+            </div>
           </div>
         </div>
       </div>
-
-      {/* 🧸 Frequently Bought Together */}
-      {/* Removed: related items section was using placeholder data */}
-    </div>
+    </>
   );
 }

@@ -1,14 +1,39 @@
+// src/pages/CartPage.jsx
 import React, { useState } from "react";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
-import { X, MapPin } from "lucide-react";
+import { X, MapPin, ShoppingBag, Trash2, ChevronDown, Tag, CheckCircle } from "lucide-react";
 import axiosInstance from "../api/utils/axiosInstance";
 
-// silence motion unused warning
 void motion;
+
+/* ─── Design tokens ────────────────────────────────────── */
+const T = {
+  bg:     "#F7F7FC",
+  card:   "#FFFFFF",
+  border: "#F0EFF8",
+  muted:  "#9CA3AF",
+  head:   "#1E1B4B",
+  accent: "#4F46E5",
+  font:   "'Poppins', sans-serif",
+};
+
+/* ─── Reusable field label ─────────────────────────────── */
+const FieldLabel = ({ children }) => (
+  <p style={{ fontSize:10, fontWeight:600, color:T.muted, textTransform:"uppercase", letterSpacing:"0.06em", margin:"0 0 5px", fontFamily:T.font }}>
+    {children}
+  </p>
+);
+
+/* ─── Input style ──────────────────────────────────────── */
+const inputStyle = {
+  width:"100%", padding:"9px 12px", border:`1px solid ${T.border}`,
+  borderRadius:10, fontSize:13, fontFamily:T.font, color:T.head,
+  background:T.card, outline:"none", boxSizing:"border-box",
+};
 
 export default function CartPage() {
   const { cart, updateQuantity, deleteItem, clearCart } = useCart();
@@ -16,587 +41,416 @@ export default function CartPage() {
   const navigate = useNavigate();
 
   const [showAddressModal, setShowAddressModal] = useState(false);
-  const [address, setAddress] = useState({
-    name: "",
-    mobile: "",
-    house: "",
-    area: "",
-    city: "",
-    pincode: "",
-  });
+  const [address, setAddress]       = useState({ name:"", mobile:"", house:"", area:"", city:"", pincode:"" });
   const [savedAddress, setSavedAddress] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState("Cash on Delivery");
-  const [loading, setLoading] = useState(false);
-
-  // 🎁 Coupon/Offer states
+  const [loading, setLoading]       = useState(false);
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [discountAmount, setDiscountAmount] = useState(0);
-  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponLoading, setCouponLoading]   = useState(false);
 
-  // 🐾 Convert cart object to array - use petId as key
-  const cartItems = Object.entries(cart || {}).map(([petId, item]) => ({
-    ...item,
-    petId,
-  }));
+  const cartItems = Object.entries(cart || {}).map(([petId, item]) => ({ ...item, petId }));
+  const totalPrice   = cartItems.reduce((s, i) => s + i.price * i.quantity, 0);
+  const tax          = (totalPrice * 0.09).toFixed(2);
+  const totalAmount  = (totalPrice + parseFloat(tax)).toFixed(2);
+  const finalTotal   = (parseFloat(totalAmount) - discountAmount).toFixed(2);
 
-  // 🧮 Totals
-  const totalPrice = cartItems.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
-  const tax = (totalPrice * 0.09).toFixed(2);
-  const totalAmount = (totalPrice + parseFloat(tax)).toFixed(2);
-
-  // 💾 Save Address
+  /* ── Address ── */
   const handleSaveAddress = () => {
     const { name, mobile, house, area, city, pincode } = address;
     if (!name || !mobile || !house || !area || !city || !pincode) {
-      toast.error("Please fill all address fields 🏠");
+      toast.error("Please fill all address fields");
       return;
     }
     setSavedAddress(address);
     setShowAddressModal(false);
-    setAddress({ name: "", mobile: "", house: "", area: "", city: "", pincode: "" });
-    toast.success("Address saved ✅");
+    setAddress({ name:"", mobile:"", house:"", area:"", city:"", pincode:"" });
+    toast.success("Address saved");
   };
 
-  // 🎁 APPLY COUPON / OFFER CODE
+  /* ── Coupon ── */
   const handleApplyCoupon = async () => {
-    if (!couponCode.trim()) {
-      toast.error("Please enter a coupon code");
-      return;
-    }
-
+    if (!couponCode.trim()) { toast.error("Please enter a coupon code"); return; }
     setCouponLoading(true);
     try {
-      // Fetch active offer from backend
       const { data } = await axiosInstance.get("/offers");
-
-      if (!data.success || !data.offer) {
-        toast.error("No active offers available");
-        setCouponLoading(false);
-        return;
-      }
-
+      if (!data.success || !data.offer) { toast.error("No active offers available"); return; }
       const offer = data.offer;
-
-      // Check if coupon code matches and offer is active
-      if (!offer.isActive) {
-        toast.error("This offer is not currently active");
-        setCouponLoading(false);
-        return;
-      }
-
-      if (offer.code.toUpperCase() !== couponCode.toUpperCase()) {
-        toast.error("Invalid coupon code ❌");
-        setCouponLoading(false);
-        return;
-      }
-
-      // Check minimum order amount
-      if (totalPrice < offer.minOrderAmount) {
-        toast.error(
-          `Minimum order amount ₹${offer.minOrderAmount} required for this coupon`
-        );
-        setCouponLoading(false);
-        return;
-      }
-
-      // Calculate discount
-      const discount = (totalPrice * offer.discount) / 100;
-      setDiscountAmount(discount);
+      if (!offer.isActive) { toast.error("This offer is not active"); return; }
+      if (offer.code.toUpperCase() !== couponCode.toUpperCase()) { toast.error("Invalid coupon code"); return; }
+      if (totalPrice < offer.minOrderAmount) { toast.error(`Min. order ₹${offer.minOrderAmount} required`); return; }
+      setDiscountAmount((totalPrice * offer.discount) / 100);
       setAppliedCoupon(offer);
       setCouponCode("");
-      toast.success(`🎉 Coupon applied! ${offer.discount}% off`);
-    } catch (error) {
-      console.error("❌ Coupon error:", error);
-      toast.error("Failed to validate coupon");
-    } finally {
-      setCouponLoading(false);
-    }
+      toast.success(`${offer.discount}% discount applied!`);
+    } catch { toast.error("Failed to validate coupon"); }
+    finally { setCouponLoading(false); }
   };
 
-  // 🗑️ Remove applied coupon
   const handleRemoveCoupon = () => {
     setAppliedCoupon(null);
     setDiscountAmount(0);
     setCouponCode("");
-    toast.success("Coupon removed");
   };
 
-  // 🧮 Calculate final total with discount
-  const finalTotal = (parseFloat(totalAmount) - discountAmount).toFixed(2);
-
-  // 🧾 Handle Place Order (COD - Direct)
+  /* ── COD ── */
   const handlePlaceOrderCOD = async () => {
-    if (cartItems.length === 0) {
-      toast.error("Your cart is empty!");
-      return;
-    }
-
-    if (!savedAddress) {
-      toast.error("Please add a delivery address 🏠");
-      return;
-    }
-
+    if (!cartItems.length) { toast.error("Your cart is empty"); return; }
+    if (!savedAddress)     { toast.error("Please add a delivery address"); return; }
     setLoading(true);
-
     try {
-      const orderItems = cartItems.map((item) => ({
-        petId: item.petId,
-        quantity: item.quantity,
-      }));
-
-      const orderData = {
-        items: orderItems,
-        totalPrice: finalTotal,
-        paymentMethod: "Cash on Delivery",
-        address: savedAddress,
-      };
-
-      const { data } = await axiosInstance.post("/orders/place", orderData);
-
+      const { data } = await axiosInstance.post("/orders/place", {
+        items: cartItems.map(i => ({ petId: i.petId, quantity: i.quantity })),
+        totalPrice: finalTotal, paymentMethod: "Cash on Delivery", address: savedAddress,
+      });
       if (data.success) {
         clearCart();
-        toast.success("Order placed successfully 🎉", {
-          duration: 1500,
-          style: { background: "#4f46e5", color: "#fff" },
-        });
-
-        setTimeout(() => {
-          navigate("/orders");
-        }, 1200);
-      } else {
-        toast.error(data.message || "Failed to place order ❌");
-      }
-    } catch (error) {
-      console.error("Order error:", error);
-      toast.error("Failed to place order ❌");
-    } finally {
-      setLoading(false);
-    }
+        toast.success("Order placed successfully!");
+        setTimeout(() => navigate("/orders"), 1200);
+      } else toast.error(data.message || "Failed to place order");
+    } catch { toast.error("Failed to place order"); }
+    finally { setLoading(false); }
   };
 
-  // 💳 Handle Razorpay Payment (Online)
+  /* ── Razorpay ── */
+  const loadRazorpayScript = () => new Promise(resolve => {
+    if (window.Razorpay) return resolve(true);
+    const s = document.createElement("script");
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.onload = () => resolve(true); s.onerror = () => resolve(false);
+    document.body.appendChild(s);
+  });
+
   const handleRazorpayPayment = async () => {
-    if (!savedAddress) {
-      toast.error("Please add a delivery address 🏠");
-      return;
-    }
-
+    if (!savedAddress) { toast.error("Please add a delivery address"); return; }
     const loaded = await loadRazorpayScript();
-    if (!loaded) {
-      toast.error("Razorpay SDK failed to load ❌");
-      return;
-    }
-
+    if (!loaded) { toast.error("Razorpay failed to load"); return; }
     try {
       setLoading(true);
-      
-      // Step 1: Create Razorpay order
-      const { data } = await axiosInstance.post("/payments/create-order", {
-        amount: Math.round(finalTotal),
-      });
-
-      if (!data.success) {
-        toast.error("Unable to create payment order ❌");
-        return;
-      }
-
-      const { order } = data;
-
-      // Step 2: Initialize Razorpay checkout
-      const options = {
-        key: data.key,
-        amount: order.amount,
-        currency: "INR",
-        name: "Pet World 🐾",
-        description: "Pet Purchase",
-        image: "https://cdn-icons-png.flaticon.com/512/616/616408.png",
-        order_id: order.id,
-        handler: async function (response) {
+      const { data } = await axiosInstance.post("/payments/create-order", { amount: Math.round(finalTotal) });
+      if (!data.success) { toast.error("Unable to create payment order"); return; }
+      const rzp = new window.Razorpay({
+        key: data.key, amount: data.order.amount, currency: "INR",
+        name: "Pet World", order_id: data.order.id,
+        handler: async (response) => {
           try {
-            // Verify payment
-            await axiosInstance.post("/payments/verify-payment", {
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
+            await axiosInstance.post("/payments/verify-payment", response);
+            const { data: od } = await axiosInstance.post("/orders/place", {
+              items: cartItems.map(i => ({ petId: i.petId, quantity: i.quantity })),
+              totalPrice: finalTotal, paymentMethod: "Razorpay", address: savedAddress,
             });
-
-            // Place order in DB
-            const orderItems = cartItems.map((item) => ({
-              petId: item.petId,
-              quantity: item.quantity,
-            }));
-
-            const orderData = {
-              items: orderItems,
-              totalPrice: finalTotal,
-              paymentMethod: "Razorpay",
-              address: savedAddress,
-            };
-
-            const orderRes = await axiosInstance.post("/orders/place", orderData);
-
-            if (orderRes.data.success) {
-              clearCart();
-              toast.success("Payment successful 🎉", {
-                duration: 1500,
-                style: { background: "#4f46e5", color: "#fff" },
-              });
-
-              setTimeout(() => {
-                navigate("/orders");
-              }, 1200);
-            }
-          } catch (error) {
-            console.error("Verification error:", error);
-            toast.error("Payment verification failed ❌");
-          }
+            if (od.success) { clearCart(); toast.success("Payment successful!"); setTimeout(() => navigate("/orders"), 1200); }
+          } catch { toast.error("Payment verification failed"); }
         },
-        prefill: {
-          name: savedAddress.name,
-          email: user?.email || "customer@example.com",
-          contact: savedAddress.mobile,
-        },
-        theme: { color: "#2563eb" },
-      };
-
-      const rzp = new window.Razorpay(options);
+        prefill: { name: savedAddress.name, email: user?.email || "", contact: savedAddress.mobile },
+        theme: { color: T.accent },
+      });
       rzp.open();
-      rzp.on("payment.failed", () => toast.error("Payment Failed ❌"));
-    } catch (err) {
-      console.error("Payment error:", err);
-      toast.error("Unable to initiate payment 🚫");
-    } finally {
-      setLoading(false);
-    }
+      rzp.on("payment.failed", () => toast.error("Payment Failed"));
+    } catch { toast.error("Unable to initiate payment"); }
+    finally { setLoading(false); }
   };
 
-  const loadRazorpayScript = () => {
-    return new Promise((resolve) => {
-      if (window.Razorpay) return resolve(true);
-      const script = document.createElement("script");
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-  };
+  const handleCheckout = () =>
+    paymentMethod === "Cash on Delivery" ? handlePlaceOrderCOD() : handleRazorpayPayment();
 
-  // 🧾 Handle Checkout
-  const handleCheckout = () => {
-    if (paymentMethod === "Cash on Delivery") {
-      handlePlaceOrderCOD();
-    } else {
-      handleRazorpayPayment();
-    }
-  };
-
+  /* ─────────────────────────────── RENDER ────────────────────────────── */
   return (
-    <div className="flex flex-col md:flex-row py-16 px-6 max-w-6xl mx-auto min-h-screen">
-      {/* 🛒 Left Section */}
-      <div className="flex-1 max-w-4xl">
-        <h1 className="text-3xl font-bold mb-6 text-gray-800">
-          Your Pet Cart 🐾{" "}
-          <span className="text-sm text-indigo-500 font-medium">
-            ({cartItems.length} {cartItems.length === 1 ? "Item" : "Items"})
-          </span>
-        </h1>
+    <div style={{ fontFamily:T.font, background:T.bg, minHeight:"100vh", padding:"32px 20px" }}>
+      <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
-        {/* Empty Cart */}
+      <div style={{ maxWidth:1060, margin:"0 auto" }}>
+
+        {/* ── Page header ── */}
+        <div style={{ marginBottom:24 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
+            <h1 style={{ fontSize:24, fontWeight:700, color:T.head, margin:0 }}>Your Cart</h1>
+            <span style={{ fontSize:12, fontWeight:600, background:"#EEF2FF", color:T.accent, padding:"2px 10px", borderRadius:99 }}>
+              {cartItems.length} {cartItems.length === 1 ? "item" : "items"}
+            </span>
+          </div>
+          <p style={{ fontSize:12, color:T.muted, margin:0 }}>Review your selections before checkout</p>
+        </div>
+
+        {/* ── Empty state ── */}
         {cartItems.length === 0 ? (
-          <div className="text-center py-20 text-gray-500">
-            <p className="text-lg mb-4">🛍️ Your cart is empty.</p>
+          <div style={{ background:T.card, borderRadius:20, border:`1px solid ${T.border}`, padding:"64px 20px", textAlign:"center" }}>
+            <ShoppingBag size={44} color="#D1D5DB" style={{ marginBottom:14 }} />
+            <p style={{ fontSize:15, fontWeight:600, color:"#374151", margin:"0 0 6px" }}>Your cart is empty</p>
+            <p style={{ fontSize:13, color:T.muted, margin:"0 0 20px" }}>Add some pets to get started</p>
             <button
               onClick={() => navigate("/")}
-              className="bg-indigo-500 text-white px-5 py-2 rounded-md hover:bg-indigo-600 transition"
+              style={{ background:T.accent, color:"#fff", border:"none", borderRadius:10, padding:"10px 22px", fontSize:13, fontWeight:600, fontFamily:T.font, cursor:"pointer" }}
             >
-              Continue Shopping
+              Browse Pets
             </button>
           </div>
         ) : (
-          <>
-            {/* Header */}
-            <div className="grid grid-cols-[2fr_1fr_1fr_1fr] text-gray-500 text-base font-medium pb-3 border-b border-gray-300">
-              <p>Product</p>
-              <p className="text-center">Price</p>
-              <p className="text-center">Quantity</p>
-              <p className="text-center">Remove</p>
-            </div>
+          <div style={{ display:"flex", gap:18, alignItems:"flex-start", flexWrap:"wrap" }}>
 
-            {/* Cart Items */}
-            {cartItems.map((item) => (
-              <div
-                key={item.petId}
-                className="grid grid-cols-[2fr_1fr_1fr_1fr] items-center border-b border-gray-200 py-4"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-20 h-20 rounded-lg overflow-hidden border border-gray-300">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-700">{item.name}</p>
-                    <p className="text-sm text-gray-500 mt-1">{item.category}</p>
-                  </div>
-                </div>
+            {/* ─── Left: cart items ─── */}
+            <div style={{ flex:"1 1 500px", display:"flex", flexDirection:"column", gap:10 }}>
 
-                <p className="text-center text-gray-700 font-medium">
-                  ₹{item.price}
-                </p>
+              {/* Column headers */}
+              <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr 40px", gap:8, padding:"0 18px", marginBottom:2 }}>
+                {["Product","Price","Qty",""].map((h,i) => (
+                  <p key={i} style={{ fontSize:10, fontWeight:600, color:T.muted, textTransform:"uppercase", letterSpacing:"0.06em", margin:0, textAlign: i>0?"center":"left" }}>{h}</p>
+                ))}
+              </div>
 
-                <div className="flex justify-center">
-                  <select
-                    className="border border-gray-300 rounded px-2 py-1 text-sm text-gray-600 outline-none cursor-pointer"
-                    value={item.quantity}
-                    onChange={(e) =>
-                      updateQuantity(item.petId, parseInt(e.target.value))
-                    }
-                  >
-                    {Array.from({ length: 5 }, (_, i) => (
-                      <option key={i + 1} value={i + 1}>
-                        {i + 1}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* Items */}
+              <div style={{ background:T.card, borderRadius:18, border:`1px solid ${T.border}`, overflow:"hidden", boxShadow:"0 1px 4px rgba(100,90,200,0.06)" }}>
+                <AnimatePresence>
+                  {cartItems.map((item, i) => (
+                    <motion.div
+                      key={item.petId}
+                      initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}
+                      exit={{ opacity:0, height:0 }} transition={{ delay:i*0.05 }}
+                      style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr 40px", gap:8, alignItems:"center", padding:"14px 18px", borderBottom: i < cartItems.length-1 ? `1px solid ${T.border}` : "none" }}
+                    >
+                      {/* Pet info */}
+                      <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                        <div style={{ width:58, height:58, borderRadius:12, overflow:"hidden", flexShrink:0, border:`1px solid ${T.border}` }}>
+                          <img src={item.image} alt={item.name} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                        </div>
+                        <div>
+                          <p style={{ fontWeight:600, fontSize:13, color:T.head, margin:0 }}>{item.name}</p>
+                          <span style={{ fontSize:11, background:"#EEF2FF", color:T.accent, padding:"2px 8px", borderRadius:99, fontWeight:600, marginTop:4, display:"inline-block" }}>{item.category}</span>
+                        </div>
+                      </div>
 
-                <button
-                  onClick={() => deleteItem(item.petId)}
-                  className="mx-auto text-red-500 hover:text-red-600 transition cursor-pointer"
-                  title="Remove Item"
-                >
-                  ❌
+                      {/* Price */}
+                      <p style={{ textAlign:"center", fontWeight:700, fontSize:14, color:T.head, margin:0 }}>
+                        ₹{(item.price * item.quantity).toLocaleString()}
+                      </p>
+
+                      {/* Qty selector */}
+                      <div style={{ display:"flex", justifyContent:"center" }}>
+                        <div style={{ position:"relative" }}>
+                          <select
+                            value={item.quantity}
+                            onChange={e => updateQuantity(item.petId, parseInt(e.target.value))}
+                            style={{ padding:"6px 24px 6px 10px", border:`1px solid ${T.border}`, borderRadius:8, fontSize:12, fontFamily:T.font, color:T.head, background:T.card, appearance:"none", outline:"none", cursor:"pointer" }}
+                          >
+                            {Array.from({length:5},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}
+                          </select>
+                          <ChevronDown size={11} color={T.muted} style={{ position:"absolute", right:6, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }} />
+                        </div>
+                      </div>
+
+                      {/* Remove */}
+                      <button
+                        onClick={() => deleteItem(item.petId)}
+                        style={{ display:"flex", alignItems:"center", justifyContent:"center", width:30, height:30, borderRadius:8, border:`1px solid #FEE2E2`, background:"#FFF1F1", cursor:"pointer" }}
+                      >
+                        <Trash2 size={13} color="#DC2626" />
+                      </button>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+
+              {/* Footer row */}
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"4px 4px" }}>
+                <button onClick={() => navigate("/")} style={{ fontSize:12, fontWeight:600, color:T.accent, background:"none", border:"none", cursor:"pointer", fontFamily:T.font }}>
+                  ← Continue Shopping
+                </button>
+                <button onClick={clearCart} style={{ fontSize:12, fontWeight:600, color:"#DC2626", background:"none", border:"none", cursor:"pointer", fontFamily:T.font, display:"flex", alignItems:"center", gap:5 }}>
+                  <Trash2 size={12} /> Clear Cart
                 </button>
               </div>
-            ))}
-
-            {/* Footer Buttons */}
-            <div className="flex justify-between items-center mt-8">
-              <button
-                onClick={() => navigate("/")}
-                className="text-indigo-500 font-medium hover:underline"
-              >
-                ← Continue Shopping
-              </button>
-
-              <button
-                onClick={clearCart}
-                className="text-red-500 hover:text-red-600 font-medium"
-              >
-                Clear Cart
-              </button>
             </div>
-          </>
-        )}
-      </div>
 
-      {/* 📦 Order Summary */}
-      {cartItems.length > 0 && (
-        <div className="max-w-[360px] w-full bg-white shadow-lg border border-gray-200 rounded-lg p-6 mt-12 md:mt-0 md:ml-8">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">
-            Order Summary
-          </h2>
-          <hr className="border-gray-300 mb-4" />
+            {/* ─── Right: order summary ─── */}
+            <div style={{ width:340, flexShrink:0, display:"flex", flexDirection:"column", gap:12 }}>
 
-          {/* Address Section */}
-          <div className="mb-6">
-            <p className="text-sm font-semibold text-gray-700 uppercase">
-              Delivery Address
-            </p>
-            {savedAddress ? (
-              <div className="border border-gray-300 rounded-lg p-3 bg-gray-50 mt-2">
-                <p className="font-medium text-gray-800">
-                  {savedAddress.name} ({savedAddress.mobile})
-                </p>
-                <p className="text-gray-600 text-xs mt-1">
-                  {savedAddress.house}, {savedAddress.area},<br />
-                  {savedAddress.city} - {savedAddress.pincode}
-                </p>
-                <button
-                  onClick={() => setShowAddressModal(true)}
-                  className="text-indigo-500 text-xs mt-2 hover:underline"
-                >
-                  Change Address
-                </button>
-              </div>
-            ) : (
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setShowAddressModal(true)}
-                className="mt-2 border border-dashed border-indigo-400 text-indigo-600 w-full py-2 rounded-lg hover:bg-indigo-50 transition"
-              >
-                + Add New Address
-              </motion.button>
-            )}
-          </div>
-
-          {/* Payment Method */}
-          <div className="mb-6">
-            <p className="text-sm font-semibold uppercase text-gray-700">
-              Payment Method
-            </p>
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              className="w-full border border-gray-300 bg-white px-3 py-2 mt-2 rounded outline-none text-sm"
-            >
-              <option value="Cash on Delivery">Cash On Delivery</option>
-              <option value="Razorpay">Online Payment (Razorpay)</option>
-            </select>
-          </div>
-
-          <hr className="border-gray-300 mb-4" />
-
-          {/* Coupon/Offer Section */}
-          <div className="mb-4">
-            <p className="text-sm font-semibold text-gray-700 mb-2">🎁 Apply Coupon</p>
-            {appliedCoupon ? (
-              <div className="bg-green-50 border border-green-300 rounded-lg p-3">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-sm font-medium text-green-700">
-                      ✅ {appliedCoupon.code}
-                    </p>
-                    <p className="text-xs text-green-600">
-                      {appliedCoupon.discount}% off applied
-                    </p>
+              {/* Delivery address card */}
+              <div style={{ background:T.card, borderRadius:18, border:`1px solid ${T.border}`, padding:"18px", boxShadow:"0 1px 4px rgba(100,90,200,0.06)" }}>
+                <FieldLabel>Delivery Address</FieldLabel>
+                {savedAddress ? (
+                  <div style={{ background:"#F7F7FC", borderRadius:12, padding:"12px 14px", marginTop:6 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                      <div>
+                        <p style={{ fontWeight:700, fontSize:13, color:T.head, margin:"0 0 3px" }}>{savedAddress.name}</p>
+                        <p style={{ fontSize:11, color:T.muted, margin:0 }}>{savedAddress.mobile}</p>
+                        <p style={{ fontSize:11, color:T.muted, margin:"4px 0 0", lineHeight:1.6 }}>
+                          {savedAddress.house}, {savedAddress.area},<br/>{savedAddress.city} – {savedAddress.pincode}
+                        </p>
+                      </div>
+                      <CheckCircle size={16} color="#059669" style={{ flexShrink:0, marginTop:2 }} />
+                    </div>
+                    <button onClick={() => setShowAddressModal(true)} style={{ fontSize:11, fontWeight:600, color:T.accent, background:"none", border:"none", cursor:"pointer", fontFamily:T.font, marginTop:8, padding:0 }}>
+                      Change Address
+                    </button>
                   </div>
-                  <button
-                    onClick={handleRemoveCoupon}
-                    className="text-red-500 hover:text-red-700 text-sm font-medium"
+                ) : (
+                  <motion.button
+                    whileTap={{ scale:0.97 }}
+                    onClick={() => setShowAddressModal(true)}
+                    style={{ width:"100%", marginTop:8, padding:"10px", border:`1.5px dashed #C7D2FE`, borderRadius:12, background:"#F5F3FF", color:T.accent, fontSize:12, fontWeight:600, fontFamily:T.font, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}
                   >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Enter code"
-                  value={couponCode}
-                  onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                  onKeyPress={(e) =>
-                    e.key === "Enter" && handleApplyCoupon()
-                  }
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 outline-none"
-                />
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleApplyCoupon}
-                  disabled={couponLoading}
-                  className="bg-indigo-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition disabled:opacity-50"
-                >
-                  {couponLoading ? "..." : "Apply"}
-                </motion.button>
-              </div>
-            )}
-          </div>
-
-          <hr className="border-gray-300 mb-4" />
-
-          {/* Price Summary */}
-          <div className="space-y-2 text-sm text-gray-700">
-            <p className="flex justify-between">
-              <span>Subtotal</span>
-              <span>₹{totalPrice}</span>
-            </p>
-            <p className="flex justify-between">
-              <span>Shipping</span>
-              <span className="text-green-600">Free</span>
-            </p>
-            <p className="flex justify-between">
-              <span>Tax (9%)</span>
-              <span>₹{tax}</span>
-            </p>
-            {discountAmount > 0 && (
-              <p className="flex justify-between text-green-600 font-medium">
-                <span>Discount ({appliedCoupon?.discount}%)</span>
-                <span>- ₹{discountAmount.toFixed(2)}</span>
-              </p>
-            )}
-            <p className="flex justify-between font-semibold text-base mt-3 pt-2 border-t">
-              <span>Total:</span>
-              <span>₹{finalTotal}</span>
-            </p>
-          </div>
-
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleCheckout}
-            disabled={loading || !savedAddress}
-            className={`w-full mt-6 py-3 rounded-lg font-medium transition ${
-              loading || !savedAddress
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-indigo-500 hover:bg-indigo-600 text-white"
-            }`}
-          >
-            {loading ? "Processing..." : paymentMethod === "Cash on Delivery" ? "Place Order (COD)" : "Proceed to Payment"}
-          </motion.button>
-        </div>
-      )}
-
-      {/* ADDRESS MODAL */}
-      <AnimatePresence>
-        {showAddressModal && (
-          <motion.div
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100]"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 150 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 relative"
-            >
-              <button
-                onClick={() => setShowAddressModal(false)}
-                className="absolute top-4 right-4 text-gray-500 hover:text-gray-800"
-              >
-                <X size={20} />
-              </button>
-
-              <h2 className="text-xl font-semibold text-indigo-700 flex items-center gap-2 mb-4">
-                <MapPin size={20} /> Add Delivery Address
-              </h2>
-
-              <div className="grid grid-cols-1 gap-3 text-sm">
-                {["Full Name", "Mobile Number", "House No.", "Road / Area", "City", "Pincode"].map(
-                  (label, index) => {
-                    const keys = ["name", "mobile", "house", "area", "city", "pincode"];
-                    return (
-                      <input
-                        key={index}
-                        type="text"
-                        placeholder={label}
-                        value={address[keys[index]]}
-                        onChange={(e) =>
-                          setAddress({
-                            ...address,
-                            [keys[index]]: e.target.value,
-                          })
-                        }
-                        className="border rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 outline-none"
-                      />
-                    );
-                  }
+                    <MapPin size={14} /> Add Delivery Address
+                  </motion.button>
                 )}
               </div>
 
+              {/* Payment method */}
+              <div style={{ background:T.card, borderRadius:18, border:`1px solid ${T.border}`, padding:"18px", boxShadow:"0 1px 4px rgba(100,90,200,0.06)" }}>
+                <FieldLabel>Payment Method</FieldLabel>
+                <div style={{ position:"relative", marginTop:6 }}>
+                  <select
+                    value={paymentMethod}
+                    onChange={e => setPaymentMethod(e.target.value)}
+                    style={{ ...inputStyle, padding:"9px 32px 9px 12px", appearance:"none", cursor:"pointer" }}
+                  >
+                    <option value="Cash on Delivery">Cash on Delivery</option>
+                    <option value="Razorpay">Online Payment (Razorpay)</option>
+                  </select>
+                  <ChevronDown size={13} color={T.muted} style={{ position:"absolute", right:11, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }} />
+                </div>
+              </div>
+
+              {/* Coupon */}
+              <div style={{ background:T.card, borderRadius:18, border:`1px solid ${T.border}`, padding:"18px", boxShadow:"0 1px 4px rgba(100,90,200,0.06)" }}>
+                <FieldLabel>Coupon / Offer Code</FieldLabel>
+                {appliedCoupon ? (
+                  <div style={{ background:"#ECFDF5", border:"1px solid #A7F3D0", borderRadius:12, padding:"12px 14px", marginTop:6, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <Tag size={14} color="#059669" />
+                      <div>
+                        <p style={{ fontSize:12, fontWeight:700, color:"#047857", margin:0 }}>{appliedCoupon.code}</p>
+                        <p style={{ fontSize:11, color:"#065F46", margin:0 }}>{appliedCoupon.discount}% off applied</p>
+                      </div>
+                    </div>
+                    <button onClick={handleRemoveCoupon} style={{ fontSize:11, fontWeight:600, color:"#DC2626", background:"none", border:"none", cursor:"pointer", fontFamily:T.font }}>Remove</button>
+                  </div>
+                ) : (
+                  <div style={{ display:"flex", gap:8, marginTop:6 }}>
+                    <input
+                      type="text" placeholder="Enter code"
+                      value={couponCode}
+                      onChange={e => setCouponCode(e.target.value.toUpperCase())}
+                      onKeyDown={e => e.key==="Enter" && handleApplyCoupon()}
+                      style={{ flex:1, padding:"9px 12px", border:`1px solid ${T.border}`, borderRadius:10, fontSize:12, fontFamily:T.font, color:T.head, background:T.card, outline:"none" }}
+                    />
+                    <motion.button
+                      whileTap={{ scale:0.96 }}
+                      onClick={handleApplyCoupon}
+                      disabled={couponLoading}
+                      style={{ background:T.accent, color:"#fff", border:"none", borderRadius:10, padding:"9px 14px", fontSize:12, fontWeight:600, fontFamily:T.font, cursor:"pointer", opacity:couponLoading?0.6:1 }}
+                    >
+                      {couponLoading ? "…" : "Apply"}
+                    </motion.button>
+                  </div>
+                )}
+              </div>
+
+              {/* Price breakdown */}
+              <div style={{ background:T.card, borderRadius:18, border:`1px solid ${T.border}`, padding:"18px", boxShadow:"0 1px 4px rgba(100,90,200,0.06)" }}>
+                <p style={{ fontSize:14, fontWeight:700, color:T.head, margin:"0 0 14px", fontFamily:T.font }}>Order Summary</p>
+                <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+                  {[
+                    { label:"Subtotal",           value:`₹${totalPrice.toLocaleString()}`,         color:T.head },
+                    { label:"Shipping",            value:"Free",                                    color:"#059669" },
+                    { label:"Tax (9%)",            value:`₹${tax}`,                                color:T.head },
+                    ...(discountAmount > 0 ? [{ label:`Discount (${appliedCoupon?.discount}%)`, value:`− ₹${discountAmount.toFixed(2)}`, color:"#059669" }] : []),
+                  ].map(r => (
+                    <div key={r.label} style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                      <span style={{ fontSize:12, color:T.muted, fontFamily:T.font }}>{r.label}</span>
+                      <span style={{ fontSize:12, fontWeight:600, color:r.color, fontFamily:T.font }}>{r.value}</span>
+                    </div>
+                  ))}
+                  <div style={{ height:1, background:T.border, margin:"4px 0" }} />
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <span style={{ fontSize:14, fontWeight:700, color:T.head, fontFamily:T.font }}>Total</span>
+                    <span style={{ fontSize:18, fontWeight:700, color:T.head, fontFamily:T.font }}>₹{parseFloat(finalTotal).toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Checkout button */}
+                <motion.button
+                  whileHover={{ scale:1.015 }} whileTap={{ scale:0.98 }}
+                  onClick={handleCheckout}
+                  disabled={loading || !savedAddress}
+                  style={{
+                    width:"100%", marginTop:16, padding:"13px",
+                    borderRadius:12, border:"none",
+                    background: loading || !savedAddress ? "#D1D5DB" : T.accent,
+                    color:"#fff", fontSize:13, fontWeight:600, fontFamily:T.font,
+                    cursor: loading || !savedAddress ? "not-allowed" : "pointer",
+                    transition:"background 0.2s",
+                  }}
+                >
+                  {loading ? "Processing…" : paymentMethod === "Cash on Delivery" ? "Place Order (COD)" : "Proceed to Payment"}
+                </motion.button>
+
+                {!savedAddress && (
+                  <p style={{ fontSize:11, color:"#F59E0B", textAlign:"center", margin:"8px 0 0", fontFamily:T.font }}>
+                    Add a delivery address to continue
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ─── Address modal ─── */}
+      <AnimatePresence>
+        {showAddressModal && (
+          <motion.div
+            initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
+            style={{ position:"fixed", inset:0, background:"rgba(30,27,75,0.45)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:100, padding:16 }}
+          >
+            <motion.div
+              initial={{ scale:0.88, opacity:0 }} animate={{ scale:1, opacity:1 }}
+              exit={{ scale:0.88, opacity:0 }} transition={{ type:"spring", stiffness:160, damping:20 }}
+              style={{ background:T.card, borderRadius:20, width:"100%", maxWidth:420, padding:"26px", position:"relative", boxShadow:"0 20px 60px rgba(79,70,229,0.15)" }}
+            >
+              <button
+                onClick={() => setShowAddressModal(false)}
+                style={{ position:"absolute", top:16, right:16, width:30, height:30, borderRadius:8, border:`1px solid ${T.border}`, background:T.bg, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}
+              >
+                <X size={15} color={T.muted} />
+              </button>
+
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:20 }}>
+                <div style={{ width:36, height:36, borderRadius:10, background:"#EEF2FF", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <MapPin size={17} color={T.accent} />
+                </div>
+                <div>
+                  <p style={{ fontWeight:700, fontSize:15, color:T.head, margin:0, fontFamily:T.font }}>Delivery Address</p>
+                  <p style={{ fontSize:11, color:T.muted, margin:0, fontFamily:T.font }}>Where should we send your pet?</p>
+                </div>
+              </div>
+
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                {[
+                  { label:"Full Name",      key:"name",    span:2 },
+                  { label:"Mobile Number",  key:"mobile",  span:2 },
+                  { label:"House / Flat No.", key:"house", span:1 },
+                  { label:"Road / Area",    key:"area",    span:1 },
+                  { label:"City",           key:"city",    span:1 },
+                  { label:"Pincode",        key:"pincode", span:1 },
+                ].map(f => (
+                  <div key={f.key} style={{ gridColumn:`span ${f.span}` }}>
+                    <FieldLabel>{f.label}</FieldLabel>
+                    <input
+                      type="text"
+                      placeholder={f.label}
+                      value={address[f.key]}
+                      onChange={e => setAddress({ ...address, [f.key]: e.target.value })}
+                      style={inputStyle}
+                    />
+                  </div>
+                ))}
+              </div>
+
               <motion.button
-                whileTap={{ scale: 0.95 }}
+                whileTap={{ scale:0.97 }}
                 onClick={handleSaveAddress}
-                className="w-full mt-5 bg-indigo-600 text-white py-3 rounded-lg font-medium hover:bg-indigo-700 transition"
+                style={{ width:"100%", marginTop:18, padding:"12px", borderRadius:12, border:"none", background:T.accent, color:"#fff", fontSize:13, fontWeight:600, fontFamily:T.font, cursor:"pointer" }}
               >
                 Save Address
               </motion.button>
