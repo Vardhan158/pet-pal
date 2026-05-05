@@ -44,7 +44,10 @@ export const addToCart = async (req, res) => {
         <br>
         <p>🐾 See you soon,<br>PetPal Team</p>
       `;
-      await sendEmail(user.email, subject, html);
+      // Non-blocking - fire and forget
+      sendEmail(user.email, subject, html).catch(err => 
+        console.error("Failed to send cart email:", err.message)
+      );
       console.log(`📧 Cart add email sent to ${user.email}`);
     } catch (mailErr) {
       console.error("❌ Failed to send cart email:", mailErr.message);

@@ -106,22 +106,19 @@ export const verifyPayment = async (req, res) => {
     );
 
     if (order?.user?.email) {
-      try {
-        await sendEmail(
-          order.user.email,
-          "Payment Successful - PetPal Order Confirmed!",
-          `
-            <h2>Hi ${order.user.name || "PetPal User"},</h2>
-            <p>Your payment for order <strong>${order._id}</strong> has been confirmed successfully.</p>
-            <p><strong>Amount Paid:</strong> Rs.${order.totalAmount}</p>
-            <p>You can track your order anytime in <strong>My Orders</strong>.</p>
-            <br>
-            <p>Regards,<br><strong>PetPal Team</strong></p>
-          `
-        );
-      } catch (emailError) {
-        console.error("Payment confirmation email failed:", emailError.message);
-      }
+      // Non-blocking - fire and forget
+      sendEmail(
+        order.user.email,
+        "Payment Successful - PetPal Order Confirmed!",
+        `
+          <h2>Hi ${order.user.name || "PetPal User"},</h2>
+          <p>Your payment for order <strong>${order._id}</strong> has been confirmed successfully.</p>
+          <p><strong>Amount Paid:</strong> Rs.${order.totalAmount}</p>
+          <p>You can track your order anytime in <strong>My Orders</strong>.</p>
+          <br>
+          <p>Regards,<br><strong>PetPal Team</strong></p>
+        `
+      ).catch(err => console.error("Payment confirmation email failed:", err.message));
     }
 
     return res.status(200).json({

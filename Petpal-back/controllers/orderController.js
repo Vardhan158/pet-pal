@@ -59,14 +59,15 @@ export const placeOrder = async (req, res) => {
         .populate("user", "name email")
         .populate("seller", "name shopName email");
 
-      await createNotification(
+      // 🔔 Notify user (non-blocking)
+      createNotification(
         userId,
         "order",
         "Order Placed",
         `Your order #${order._id.toString().slice(-6)} has been placed`,
         order._id.toString(),
         "order"
-      );
+      ).catch(err => console.error("Notification error:", err.message));
 
       return res.status(201).json({
         success: true,
@@ -129,14 +130,15 @@ export const placeOrder = async (req, res) => {
 
       orders.push(order);
 
-      await createNotification(
+      // 🔔 Notify user (non-blocking)
+      createNotification(
         userId,
         "order",
         "Order Placed",
         `Your order #${order._id.toString().slice(-6)} has been placed`,
         order._id.toString(),
         "order"
-      );
+      ).catch(err => console.error("Notification error:", err.message));
     }
 
     // 🧹 Clear user's cart
@@ -205,33 +207,29 @@ export const markOrderAsPaid = async (req, res) => {
 
     console.log(`✅ Payment marked as PAID for Order: ${order._id}`);
 
-    // 📧 Notify buyer + seller
-    try {
-      const { user, seller } = order;
+    // 📧 Notify buyer + seller (non-blocking)
+    const { user, seller } = order;
 
-      if (user?.email) {
-        await sendEmail(
-          user.email,
-          "💳 Payment Successful - PetPal",
-          `<h2>Hi ${user.name || "PetPal User"},</h2>
-           <p>Your payment (<strong>${razorpay_payment_id}</strong>) for order <strong>${order._id}</strong> was successful ✅</p>
-           <p><strong>Total:</strong> ₹${order.totalAmount}</p>
-           <br><p>🐾 Regards,<br><strong>PetPal Team</strong></p>`
-        );
-      }
+    if (user?.email) {
+      sendEmail(
+        user.email,
+        "💳 Payment Successful - PetPal",
+        `<h2>Hi ${user.name || "PetPal User"},</h2>
+         <p>Your payment (<strong>${razorpay_payment_id}</strong>) for order <strong>${order._id}</strong> was successful ✅</p>
+         <p><strong>Total:</strong> ₹${order.totalAmount}</p>
+         <br><p>🐾 Regards,<br><strong>PetPal Team</strong></p>`
+      ).catch(err => console.error("Email send error:", err.message));
+    }
 
-      if (seller?.email) {
-        await sendEmail(
-          seller.email,
-          "🛍️ Order Payment Received - PetPal",
-          `<h2>Hi ${seller.shopName || seller.name || "Seller"},</h2>
-           <p>Payment received for order <strong>${order._id}</strong> 💰</p>
-           <p><strong>Total:</strong> ₹${order.totalAmount}</p>
-           <br><p>🐶 Regards,<br><strong>PetPal Admin Team</strong></p>`
-        );
-      }
-    } catch (err) {
-      console.error("❌ Email send failed after payment:", err.message);
+    if (seller?.email) {
+      sendEmail(
+        seller.email,
+        "🛍️ Order Payment Received - PetPal",
+        `<h2>Hi ${seller.shopName || seller.name || "Seller"},</h2>
+         <p>Payment received for order <strong>${order._id}</strong> 💰</p>
+         <p><strong>Total:</strong> ₹${order.totalAmount}</p>
+         <br><p>🐶 Regards,<br><strong>PetPal Admin Team</strong></p>`
+      ).catch(err => console.error("Email send error:", err.message));
     }
 
     res.status(200).json({
@@ -276,24 +274,33 @@ export const getUserOrders = async (req, res) => {
 export const getSellerOrders = async (req, res) => {
   try {
     const sellerId = req.user._id;
+    console.log(`📦 Fetching orders for seller: ${sellerId}`);
 
     const directOrders = await Order.find({ seller: sellerId })
       .populate("items.pet", "name price image category seller")
       .populate("user", "name email")
       .sort({ createdAt: -1 });
 
+    console.log(`✅ Found ${directOrders.length} direct orders`);
+
     const petsBySeller = await Pet.find({ seller: sellerId }).select("_id");
     const petIds = petsBySeller.map((p) => p._id);
+
+    console.log(`✅ Found ${petIds.length} pets by seller`);
 
     const petLinkedOrders = await Order.find({ "items.pet": { $in: petIds } })
       .populate("items.pet", "name price image category seller")
       .populate("user", "name email")
       .sort({ createdAt: -1 });
 
+    console.log(`✅ Found ${petLinkedOrders.length} pet-linked orders`);
+
     const allOrdersMap = new Map();
     [...directOrders, ...petLinkedOrders].forEach((o) =>
       allOrdersMap.set(o._id.toString(), o)
     );
+
+    console.log(`📊 Total unique orders: ${allOrdersMap.size}`);
 
     res.json({
       success: true,
@@ -328,28 +335,24 @@ export const updateOrderStatus = async (req, res) => {
     order.orderStatus = status;
     await order.save();
 
-    // � Create notification for user
-    await createNotification(
+    // 🔔 Create notification for user (non-blocking - fire and forget)
+    createNotification(
       order.user._id,
       "order",
       `📦 Order Status Update`,
       `Your order #${order._id.toString().slice(-6)} is now ${status}`,
       order._id.toString(),
       "order"
-    );
+    ).catch(err => console.error("Notification error:", err.message));
 
-    // �📧 Notify user via email
-    try {
-      await sendEmail(
-        order.user.email,
-        `📦 Order Update: ${status}`,
-        `<h2>Hi ${order.user.name || "PetPal User"},</h2>
-         <p>Your order <strong>${order._id}</strong> is now <strong>${status}</strong>.</p>
-         <br><p>🐾 Regards,<br><strong>PetPal Team</strong></p>`
-      );
-    } catch (err) {
-      console.error("❌ Failed to send order status email:", err.message);
-    }
+    // 📧 Notify user via email (non-blocking)
+    sendEmail(
+      order.user.email,
+      `📦 Order Update: ${status}`,
+      `<h2>Hi ${order.user.name || "PetPal User"},</h2>
+       <p>Your order <strong>${order._id}</strong> is now <strong>${status}</strong>.</p>
+       <br><p>🐾 Regards,<br><strong>PetPal Team</strong></p>`
+    ).catch(err => console.error("Email send error:", err.message));
 
     res.json({ success: true, message: "Order status updated", order });
   } catch (error) {
