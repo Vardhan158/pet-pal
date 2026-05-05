@@ -23,10 +23,12 @@ dotenv.config();
 const app = express();
 
 /* ================= MIDDLEWARE ================= */
-app.use(express.json());
 app.use(
   cors({
-    origin: "https://pet-pal-front.onrender.com",
+    origin: [
+      "http://localhost:5173",                 // ✅ local frontend
+      "https://pet-pal-front.onrender.com"     // ✅ deployed frontend
+    ],
     credentials: true,
   })
 );
