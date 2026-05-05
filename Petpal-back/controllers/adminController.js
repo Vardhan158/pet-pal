@@ -201,10 +201,22 @@ export const getRejectedItems = async (req, res) => {
 ===================================================== */
 export const getAllSellers = async (req, res) => {
   try {
-    const sellers = await Seller.find().select("-password");
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (page - 1) * limit;
+
+    const sellers = await Seller.find()
+      .select("-password")
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await Seller.countDocuments();
+
     res.status(200).json({
       success: true,
       count: sellers.length,
+      total,
+      page: parseInt(page),
+      pages: Math.ceil(total / limit),
       sellers,
     });
   } catch (error) {
@@ -221,10 +233,22 @@ export const getAllSellers = async (req, res) => {
 ===================================================== */
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password");
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (page - 1) * limit;
+
+    const users = await User.find()
+      .select("-password")
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await User.countDocuments();
+
     res.status(200).json({
       success: true,
       count: users.length,
+      total,
+      page: parseInt(page),
+      pages: Math.ceil(total / limit),
       users,
     });
   } catch (error) {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import toast, { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
 
 export default function OfferManagement() {
   const [offer, setOffer]     = useState(null);
@@ -299,11 +299,6 @@ export default function OfferManagement() {
       `}</style>
 
       <div className="om-root">
-        <Toaster
-          position="top-center"
-          toastOptions={{ style: { fontFamily: "'Poppins', sans-serif", fontSize: "0.85rem" } }}
-        />
-
         {/* Page title */}
         <div className="om-page-title">
           <div className="om-page-title-icon">🏷️</div>

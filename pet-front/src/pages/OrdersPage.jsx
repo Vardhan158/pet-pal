@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import toast, { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import axiosInstance from "../api/utils/axiosInstance";
 import { NOTIFICATION_EVENT } from "../components/RealtimeNotifications";
@@ -259,7 +259,6 @@ export default function OrdersPage() {
 
   return (
     <div style={S.page}>
-      <Toaster position="top-right" toastOptions={{ style: { fontFamily: "'Poppins', sans-serif", fontSize: 13 } }} />
       <div style={S.inner}>
 
         {/* ── Header ── */}

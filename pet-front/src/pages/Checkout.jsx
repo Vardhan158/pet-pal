@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 void motion;
 import { ArrowLeft, CreditCard, Truck, ShieldCheck, MapPin, X, Tag, CheckCircle } from "lucide-react";
-import toast, { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
 import axios from "axios";
 import axiosInstance from "../api/utils/axiosInstance";
 import { useAuth } from "../context/AuthContext";
@@ -428,7 +428,6 @@ export default function Checkout() {
 
   return (
     <div style={S.page}>
-      <Toaster position="top-right" toastOptions={{ style: { fontFamily: "'Poppins', sans-serif", fontSize: 13 } }} />
       <div style={S.inner}>
 
         {/* ── Breadcrumb ── */}

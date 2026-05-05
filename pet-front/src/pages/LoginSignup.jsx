@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import toast, { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
 import { useAuth } from "../context/AuthContext";
 
 import Dog1 from "../assets/Dog1.jpg";
@@ -313,8 +313,6 @@ export default function LoginSignup() {
 
   return (
     <div style={S.root}>
-      <Toaster position="top-center" toastOptions={{ style: { fontFamily: "'Poppins', sans-serif", fontSize: 13 } }} />
-
       {/* Blobs */}
       <div style={S.blob1} /><div style={S.blob2} /><div style={S.blob3} />
 

@@ -27,19 +27,19 @@ export const updateOffer = async (req, res) => {
       });
     }
 
-    // 🔔 Create notifications for all regular users
+    // 🔔 Create notifications for users (non-blocking)
     if (isActive) {
       const allUsers = await User.find({ role: "user" });
-      for (const user of allUsers) {
-        await createNotification(
+      allUsers.forEach(user => {
+        createNotification(
           user._id,
           "offer",
           "🎁 New Offer Available",
           `${message} - Get ${discount}% off with code "${code}"`,
           offer._id.toString(),
           "offer"
-        );
-      }
+        ).catch(err => console.error("Notification error:", err.message));
+      });
     }
 
     res.json({ success: true, message: "Offer updated successfully 🎉", offer });

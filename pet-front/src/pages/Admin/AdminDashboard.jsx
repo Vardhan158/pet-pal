@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axiosInstance from "../../api/utils/axiosInstance";
-import toast, { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle, XCircle, UserPlus, Loader2 } from "lucide-react";
 import AdminSidebar from "../../components/AdminSidebar";
@@ -209,21 +209,6 @@ export default function AdminDashboard() {
       display: "flex", minHeight: "100vh",
       background: "linear-gradient(160deg, #F8FAFF 0%, #FFFFFF 55%, #F5F8FF 100%)",
     }}>
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          style: {
-            fontFamily: "'Poppins', sans-serif", fontSize: "0.87rem",
-            fontWeight: 500, borderRadius: "14px", padding: "11px 18px",
-            background: "#fff", color: "#0F172A",
-            boxShadow: "0 8px 28px rgba(0,0,0,0.10)",
-            border: "1px solid rgba(0,0,0,0.06)",
-          },
-          success: { style: { background: "#EEF2FF", color: "#3730A3", border: "1px solid #C7D2FE" } },
-          error:   { style: { background: "#FEF2F2", color: "#991B1B", border: "1px solid #FECACA" } },
-        }}
-      />
-
       <AdminSidebar setView={setView} currentView={view} />
 
       <main style={{ flex: 1, padding: "40px 36px", overflowY: "auto" }}>

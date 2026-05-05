@@ -68,7 +68,54 @@ const AppContent = () => {
 
   return (
     <>
-      <Toaster position="top-center" />
+      <Toaster 
+        position="top-center"
+        reverseOrder={false}
+        gutter={8}
+        toastOptions={{
+          duration: 3500,
+          style: {
+            background: "#fff",
+            color: "#1e1b4b",
+            fontFamily: "'Poppins', sans-serif",
+            fontSize: "0.95rem",
+            fontWeight: 500,
+            borderRadius: "14px",
+            boxShadow: "0 10px 32px rgba(99, 102, 241, 0.15)",
+            border: "1px solid #ede9fe",
+            padding: "14px 18px",
+          },
+          success: {
+            style: {
+              background: "#f0fdf4",
+              color: "#15803d",
+              border: "1.5px solid #bbf7d0",
+            },
+            iconTheme: {
+              primary: "#22c55e",
+              secondary: "#f0fdf4",
+            },
+          },
+          error: {
+            style: {
+              background: "#fef2f2",
+              color: "#be123c",
+              border: "1.5px solid #fecdd3",
+            },
+            iconTheme: {
+              primary: "#ef4444",
+              secondary: "#fef2f2",
+            },
+          },
+          loading: {
+            style: {
+              background: "#f5f3ff",
+              color: "#6366f1",
+              border: "1.5px solid #e8e4fc",
+            },
+          },
+        }}
+      />
       <RealtimeNotifications />
       {!hideLayout && <Navbar />}
 

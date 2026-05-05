@@ -102,15 +102,19 @@ export default function CartPage() {
     try {
       const { data } = await axiosInstance.post("/orders/place", {
         items: cartItems.map(i => ({ petId: i.petId, quantity: i.quantity })),
-        totalPrice: finalTotal, paymentMethod: "Cash on Delivery", address: savedAddress,
+        totalPrice: parseFloat(finalTotal),   // ✅ fixed: was string
+        paymentMethod: "Cash on Delivery",
+        address: savedAddress,
       });
       if (data.success) {
         clearCart();
         toast.success("Order placed successfully!");
         setTimeout(() => navigate("/orders"), 1200);
       } else toast.error(data.message || "Failed to place order");
-    } catch { toast.error("Failed to place order"); }
-    finally { setLoading(false); }
+    } catch (err) {
+      console.error("COD order error:", err.response?.data);
+      toast.error("Failed to place order");
+    } finally { setLoading(false); }
   };
 
   /* ── Razorpay ── */
@@ -128,7 +132,9 @@ export default function CartPage() {
     if (!loaded) { toast.error("Razorpay failed to load"); return; }
     try {
       setLoading(true);
-      const { data } = await axiosInstance.post("/payments/create-order", { amount: Math.round(finalTotal) });
+      const { data } = await axiosInstance.post("/payments/create-order", {
+        amount: Math.round(parseFloat(finalTotal)),   // ✅ fixed: was Math.round(string)
+      });
       if (!data.success) { toast.error("Unable to create payment order"); return; }
       const rzp = new window.Razorpay({
         key: data.key, amount: data.order.amount, currency: "INR",
@@ -138,18 +144,29 @@ export default function CartPage() {
             await axiosInstance.post("/payments/verify-payment", response);
             const { data: od } = await axiosInstance.post("/orders/place", {
               items: cartItems.map(i => ({ petId: i.petId, quantity: i.quantity })),
-              totalPrice: finalTotal, paymentMethod: "Razorpay", address: savedAddress,
+              totalPrice: parseFloat(finalTotal),   // ✅ fixed: was string
+              paymentMethod: "Razorpay",
+              address: savedAddress,
             });
-            if (od.success) { clearCart(); toast.success("Payment successful!"); setTimeout(() => navigate("/orders"), 1200); }
-          } catch { toast.error("Payment verification failed"); }
+            if (od.success) {
+              clearCart();
+              toast.success("Payment successful!");
+              setTimeout(() => navigate("/orders"), 1200);
+            }
+          } catch (err) {
+            console.error("Razorpay verify error:", err.response?.data);
+            toast.error("Payment verification failed");
+          }
         },
         prefill: { name: savedAddress.name, email: user?.email || "", contact: savedAddress.mobile },
         theme: { color: T.accent },
       });
       rzp.open();
       rzp.on("payment.failed", () => toast.error("Payment Failed"));
-    } catch { toast.error("Unable to initiate payment"); }
-    finally { setLoading(false); }
+    } catch (err) {
+      console.error("Razorpay init error:", err.response?.data);
+      toast.error("Unable to initiate payment");
+    } finally { setLoading(false); }
   };
 
   const handleCheckout = () =>
@@ -427,12 +444,12 @@ export default function CartPage() {
 
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                 {[
-                  { label:"Full Name",      key:"name",    span:2 },
-                  { label:"Mobile Number",  key:"mobile",  span:2 },
-                  { label:"House / Flat No.", key:"house", span:1 },
-                  { label:"Road / Area",    key:"area",    span:1 },
-                  { label:"City",           key:"city",    span:1 },
-                  { label:"Pincode",        key:"pincode", span:1 },
+                  { label:"Full Name",        key:"name",    span:2 },
+                  { label:"Mobile Number",    key:"mobile",  span:2 },
+                  { label:"House / Flat No.", key:"house",   span:1 },
+                  { label:"Road / Area",      key:"area",    span:1 },
+                  { label:"City",             key:"city",    span:1 },
+                  { label:"Pincode",          key:"pincode", span:1 },
                 ].map(f => (
                   <div key={f.key} style={{ gridColumn:`span ${f.span}` }}>
                     <FieldLabel>{f.label}</FieldLabel>

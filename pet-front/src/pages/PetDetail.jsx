@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import axiosInstance from "../api/utils/axiosInstance";
-import toast, { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
@@ -617,7 +617,6 @@ export default function PetDetail() {
   return (
     <div className="pd-root pd-page">
       <style>{css}</style>
-      <Toaster position="top-right" toastOptions={{ style: { fontFamily: "Poppins, sans-serif", fontSize: "0.82rem" } }} />
 
       <div className="pd-inner">
         {/* Breadcrumb */}

@@ -32,11 +32,8 @@ export const placeOrder = async (req, res) => {
       if (!pet)
         return res.status(404).json({ success: false, message: "Pet not found" });
 
-      // ✅ Safely extract seller ID (handle nested or direct)
-      const sellerId =
-        pet.seller?._id?.toString() ||
-        pet.seller?.toString() ||
-        null;
+      // ✅ Safely extract seller ID as ObjectId (not string)
+      const sellerId = pet.seller?._id || pet.seller;
 
       orderItems = [{ pet: pet._id, quantity }];
       totalAmount = totalPrice || pet.price * quantity;
@@ -46,7 +43,7 @@ export const placeOrder = async (req, res) => {
         user: userId,
         items: orderItems,
         totalAmount,
-        seller: sellerId,
+        seller: sellerId || null,
         paymentMethod: paymentMethod || "Cash on Delivery",
         paymentStatus: "Pending",
         razorpayOrderId: razorpayOrderId || null,
@@ -93,28 +90,29 @@ export const placeOrder = async (req, res) => {
     // 🔁 Group items by seller (use optional chaining to handle missing pet links)
     const groupedBySeller = {};
     cart.items.forEach((item) => {
-      const seller =
-        item.pet?.seller?._id?.toString() ||
-        item.pet?.seller?.toString() ||
-        "unknown";
-      if (!groupedBySeller[seller]) groupedBySeller[seller] = [];
-      groupedBySeller[seller].push(item);
+      // Extract seller ID as ObjectId
+      const sellerId = item.pet?.seller?._id || item.pet?.seller;
+      const sellerKey = sellerId?.toString?.() || sellerId?.toString() || "unknown";
+      if (!groupedBySeller[sellerKey]) groupedBySeller[sellerKey] = [];
+      groupedBySeller[sellerKey].push(item);
     });
 
     const orders = [];
 
     // 💾 Create one order per seller
-    for (const [seller, items] of Object.entries(groupedBySeller)) {
+    for (const [sellerKey, items] of Object.entries(groupedBySeller)) {
       const total = items.reduce(
         (sum, item) => sum + item.pet.price * item.quantity,
         0
       );
 
-      // ✅ Detect and assign seller safely
-      const derivedSellerId =
-        items[0]?.pet?.seller?._id?.toString() ||
-        items[0]?.pet?.seller?.toString() ||
-        (seller === "unknown" ? null : seller);
+      // ✅ Detect and assign seller safely - use the actual ObjectId, not string
+      let derivedSellerId = null;
+      if (sellerKey !== "unknown") {
+        // Get the seller ObjectId from the first item
+        const petSeller = items[0]?.pet?.seller;
+        derivedSellerId = petSeller?._id || petSeller;
+      }
 
       const order = await Order.create({
         user: userId,
@@ -148,9 +146,10 @@ export const placeOrder = async (req, res) => {
     const populatedOrders = await Order.find({
       _id: { $in: orders.map((o) => o._id) },
     })
-      .populate("items.pet", "name price category image")
+      .populate("items.pet", "name price image category seller")
       .populate("user", "name email")
-      .populate("seller", "name shopName email");
+      .populate("seller", "name email shopName")
+      .sort({ createdAt: -1 });
 
     return res.status(201).json({
       success: true,
@@ -276,36 +275,55 @@ export const getSellerOrders = async (req, res) => {
     const sellerId = req.user._id;
     console.log(`📦 Fetching orders for seller: ${sellerId}`);
 
+    // 1️⃣ Find orders where seller field is directly set
     const directOrders = await Order.find({ seller: sellerId })
-      .populate("items.pet", "name price image category seller")
+      .populate({
+        path: "items.pet",
+        select: "name price image category seller",
+      })
       .populate("user", "name email")
+      .populate("seller", "name email shopName")
       .sort({ createdAt: -1 });
 
-    console.log(`✅ Found ${directOrders.length} direct orders`);
+    console.log(`✅ Found ${directOrders.length} direct orders for seller ${sellerId}`);
 
+    // 2️⃣ Find all pets by this seller
     const petsBySeller = await Pet.find({ seller: sellerId }).select("_id");
     const petIds = petsBySeller.map((p) => p._id);
 
     console.log(`✅ Found ${petIds.length} pets by seller`);
 
-    const petLinkedOrders = await Order.find({ "items.pet": { $in: petIds } })
-      .populate("items.pet", "name price image category seller")
-      .populate("user", "name email")
-      .sort({ createdAt: -1 });
+    // 3️⃣ Find orders that contain items with these pets (handles orders where seller field wasn't set)
+    let petLinkedOrders = [];
+    if (petIds.length > 0) {
+      petLinkedOrders = await Order.find({ "items.pet": { $in: petIds } })
+        .populate({
+          path: "items.pet",
+          select: "name price image category seller",
+        })
+        .populate("user", "name email")
+        .populate("seller", "name email shopName")
+        .sort({ createdAt: -1 });
 
-    console.log(`✅ Found ${petLinkedOrders.length} pet-linked orders`);
+      console.log(`✅ Found ${petLinkedOrders.length} pet-linked orders`);
+    }
 
+    // 4️⃣ Merge both lists and remove duplicates (using _id as key)
     const allOrdersMap = new Map();
-    [...directOrders, ...petLinkedOrders].forEach((o) =>
-      allOrdersMap.set(o._id.toString(), o)
-    );
+    const allOrders = [...directOrders, ...petLinkedOrders];
+    
+    allOrders.forEach((order) => {
+      const orderId = order._id?.toString();
+      allOrdersMap.set(orderId, order);
+    });
 
-    console.log(`📊 Total unique orders: ${allOrdersMap.size}`);
+    const uniqueOrders = Array.from(allOrdersMap.values());
+    console.log(`📊 Total unique orders: ${uniqueOrders.length}`);
 
     res.json({
       success: true,
-      count: allOrdersMap.size,
-      orders: Array.from(allOrdersMap.values()),
+      count: uniqueOrders.length,
+      orders: uniqueOrders,
     });
   } catch (error) {
     console.error("❌ getSellerOrders error:", error.message);

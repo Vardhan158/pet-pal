@@ -34,15 +34,15 @@ export const addPet = async (req, res) => {
       specifications: Array.isArray(specifications) ? specifications : [],
     });
 
-    // 🔔 Notify seller that product is submitted
-    await createNotification(
+    // 🔔 Notify seller (non-blocking)
+    createNotification(
       req.user._id,
       "product",
       "📦 Product Submitted",
       `Your product "${name}" has been submitted for admin review`,
       pet._id.toString(),
       "pet"
-    );
+    ).catch(err => console.error("Notification error:", err.message));
 
     res.status(201).json({
       success: true,
@@ -142,7 +142,8 @@ export const reviewPet = async (req, res) => {
 ============================================================ */
 export const getApprovedPets = async (req, res) => {
   try {
-    const { category } = req.query;
+    const { category, page = 1, limit = 12 } = req.query;
+    const skip = (page - 1) * limit;
     const filter = { status: "approved" };
 
     // ✅ Case-insensitive category filter
@@ -152,11 +153,18 @@ export const getApprovedPets = async (req, res) => {
 
     const pets = await Pet.find(filter)
       .populate("seller", "name email shopName")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await Pet.countDocuments(filter);
 
     res.status(200).json({
       success: true,
       count: pets.length,
+      total,
+      page: parseInt(page),
+      pages: Math.ceil(total / limit),
       pets,
     });
   } catch (error) {
@@ -249,18 +257,34 @@ export const deleteSellerPet = async (req, res) => {
 
 export const getApprovedPetsByCategory = async (req, res) => {
   try {
-    const { category } = req.query;
+    const { category, page = 1, limit = 12 } = req.query;
+    const skip = (page - 1) * limit;
 
     const query = { status: "approved" };
     if (category) query.category = category;
 
-    const pets = await Pet.find(query).populate("seller", "name email");
-    res.status(200).json({ success: true, count: pets.length, pets });
+    const pets = await Pet.find(query)
+      .populate("seller", "name email")
+      .skip(skip)
+      .limit(parseInt(limit))
+      .sort({ createdAt: -1 });
+
+    const total = await Pet.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      count: pets.length,
+      total,
+      page: parseInt(page),
+      pages: Math.ceil(total / limit),
+      pets,
+    });
   } catch (error) {
     console.error("❌ Error fetching approved pets:", error.message);
-    res
-      .status(500)
-      .json({ message: "Error fetching approved pets", error: error.message });
+    res.status(500).json({
+      message: "Error fetching approved pets",
+      error: error.message,
+    });
   }
 };
 
