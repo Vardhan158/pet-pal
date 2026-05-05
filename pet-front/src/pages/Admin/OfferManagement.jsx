@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
 import toast from "react-hot-toast";
+import axiosInstance from "../../api/utils/axiosInstance";
 
 export default function OfferManagement() {
   const [offer, setOffer]     = useState(null);
@@ -16,7 +16,7 @@ export default function OfferManagement() {
 
   const fetchOffer = async () => {
     try {
-      const { data } = await axios.get("https://pet-pal-x74f.onrender.com/api/offers");
+      const { data } = await axiosInstance.get("/offers");
       if (data.success && data.offer) {
         setOffer(data.offer);
         setFormData({
@@ -45,12 +45,7 @@ export default function OfferManagement() {
     e.preventDefault();
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const { data } = await axios.put(
-        "http://localhost:5008/api/offers/update",
-        formData,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const { data } = await axiosInstance.put("/offers/update", formData);
       if (data.success) {
         toast.success("Offer updated successfully!");
         fetchOffer();
