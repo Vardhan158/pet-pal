@@ -12,6 +12,7 @@ const fadeUp = {
 };
 
 const CATEGORIES = ["Dog", "Cat", "Bird", "Fish"];
+const SELLER_PRODUCT_DRAFT_KEY = "seller-add-product-draft";
 
 export default function SellerAddProduct({ editingPet = null, clearEditing = () => {} }) {
   const [images,    setImages]    = useState([]);
@@ -42,10 +43,37 @@ export default function SellerAddProduct({ editingPet = null, clearEditing = () 
         id: editingPet._id || editingPet.id || null,
       });
       setImages(editingPet.image ? [editingPet.image] : []);
+      return;
+    }
+
+    try {
+      const savedDraft = localStorage.getItem(SELLER_PRODUCT_DRAFT_KEY);
+      if (!savedDraft) return;
+
+      const parsedDraft = JSON.parse(savedDraft);
+      if (!parsedDraft || typeof parsedDraft !== "object") return;
+
+      setPetForm((prev) => ({
+        ...prev,
+        ...parsedDraft,
+        specifications:
+          Array.isArray(parsedDraft.specifications) && parsedDraft.specifications.length
+            ? parsedDraft.specifications
+            : prev.specifications,
+      }));
+      setImages(parsedDraft.image ? [parsedDraft.image] : []);
+    } catch {
+      localStorage.removeItem(SELLER_PRODUCT_DRAFT_KEY);
     }
   }, [editingPet]);
 
   const set = (key, val) => setPetForm((p) => ({ ...p, [key]: val }));
+
+  useEffect(() => {
+    if (editingPet || petForm.id) return;
+    localStorage.setItem(SELLER_PRODUCT_DRAFT_KEY, JSON.stringify(petForm));
+    setImages(petForm.image ? [petForm.image] : []);
+  }, [editingPet, petForm]);
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
@@ -85,6 +113,7 @@ export default function SellerAddProduct({ editingPet = null, clearEditing = () 
 
       if (res.data.success) {
         toast.success(`Pet ${petForm.id ? "updated" : "added"} successfully!`);
+        localStorage.removeItem(SELLER_PRODUCT_DRAFT_KEY);
         setPetForm({ name:"", category:"", price:"", offerPrice:"", description:"", image:"", specifications:[{ label:"", value:"" }], inStock:true });
         setImages([]);
         clearEditing();
@@ -108,41 +137,49 @@ export default function SellerAddProduct({ editingPet = null, clearEditing = () 
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
-        * { box-sizing: border-box; }
+        *, *::before, *::after { box-sizing: border-box; }
 
         .sap-root {
           font-family: 'Poppins', sans-serif;
+          width: 100%;
           max-width: 1060px;
-          margin: 2rem auto;
-          padding: 0 1.5rem 3rem;
+          margin: 1.5rem auto;
+          padding: 0 1rem 3rem;
         }
 
-        .sap-header { display: flex; align-items: center; gap: 10px; margin-bottom: 1.75rem; }
+        /* ── Header ── */
+        .sap-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 1.5rem;
+          flex-wrap: wrap;
+        }
         .sap-header-icon {
-          width: 42px; height: 42px;
+          width: 42px; height: 42px; flex-shrink: 0;
           background: linear-gradient(135deg, #f5a623, #f76b1c);
           border-radius: 12px;
           display: flex; align-items: center; justify-content: center;
-          font-size: 1.1rem; flex-shrink: 0;
+          font-size: 1.1rem;
         }
-        .sap-title   { font-size: 1.3rem; font-weight: 700; color: #1a1a2e; letter-spacing: -0.3px; }
-        .sap-subtitle { font-size: 0.78rem; color: #9499b0; }
+        .sap-title    { font-size: 1.3rem; font-weight: 700; color: #1a1a2e; letter-spacing: -0.3px; margin: 0; }
+        .sap-subtitle { font-size: 0.78rem; color: #9499b0; margin: 0; }
 
-        /* ── Two-column landscape shell ── */
+        /* ── Shell: side-by-side on desktop, stacked on mobile ── */
         .sap-shell {
           display: grid;
-          grid-template-columns: 280px 1fr;
+          grid-template-columns: 260px 1fr;
           gap: 1.25rem;
           align-items: start;
         }
-        @media (max-width: 700px) { .sap-shell { grid-template-columns: 1fr; } }
 
+        /* ── Card ── */
         .sap-card {
           background: #fff;
           border-radius: 20px;
           border: 1px solid #eef0f6;
           box-shadow: 0 4px 24px rgba(0,0,0,0.05);
-          padding: 1.4rem;
+          padding: 1.25rem;
         }
 
         /* ── Left column ── */
@@ -150,7 +187,7 @@ export default function SellerAddProduct({ editingPet = null, clearEditing = () 
 
         .sap-upload-box {
           width: 100%; aspect-ratio: 1;
-          border-radius: 16px;
+          border-radius: 14px;
           border: 2px dashed #e0e3ef;
           background: #f8f9fc;
           display: flex; flex-direction: column;
@@ -160,7 +197,10 @@ export default function SellerAddProduct({ editingPet = null, clearEditing = () 
         }
         .sap-upload-box:hover { border-color: #f5a623; background: #fffaf3; }
         .sap-upload-box img   { width: 100%; height: 100%; object-fit: cover; }
-        .sap-upload-placeholder { display: flex; flex-direction: column; align-items: center; gap: 6px; color: #b8bdd0; }
+        .sap-upload-placeholder {
+          display: flex; flex-direction: column;
+          align-items: center; gap: 6px; color: #b8bdd0;
+        }
         .sap-upload-placeholder p    { font-size: 0.8rem; font-weight: 500; margin: 0; }
         .sap-upload-placeholder span { font-size: 0.68rem; }
 
@@ -171,15 +211,19 @@ export default function SellerAddProduct({ editingPet = null, clearEditing = () 
         }
         @keyframes sap-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
+        /* ── Toggle ── */
         .sap-toggle-row {
           display: flex; align-items: center; justify-content: space-between;
           background: #f8f9fc; border: 1.5px solid #e8eaf0;
           border-radius: 11px; padding: 0.65rem 0.9rem;
         }
         .sap-toggle-label { font-size: 0.82rem; font-weight: 500; color: #4a4f68; }
-        .sap-toggle { position: relative; width: 40px; height: 22px; cursor: pointer; }
+        .sap-toggle { position: relative; width: 40px; height: 22px; cursor: pointer; flex-shrink: 0; }
         .sap-toggle input { opacity: 0; width: 0; height: 0; }
-        .sap-toggle-track { position: absolute; inset: 0; background: #e0e3ef; border-radius: 99px; transition: background 0.2s; }
+        .sap-toggle-track {
+          position: absolute; inset: 0;
+          background: #e0e3ef; border-radius: 99px; transition: background 0.2s;
+        }
         .sap-toggle input:checked + .sap-toggle-track { background: #f5a623; }
         .sap-toggle-thumb {
           position: absolute; top: 3px; left: 3px;
@@ -188,6 +232,7 @@ export default function SellerAddProduct({ editingPet = null, clearEditing = () 
         }
         .sap-toggle input:checked ~ .sap-toggle-thumb { transform: translateX(18px); }
 
+        /* ── Submit button ── */
         .sap-submit {
           width: 100%; padding: 0.85rem;
           font-family: 'Poppins', sans-serif; font-size: 0.9rem; font-weight: 600;
@@ -217,8 +262,9 @@ export default function SellerAddProduct({ editingPet = null, clearEditing = () 
           font-family: 'Poppins', sans-serif; font-size: 0.85rem; color: #1a1a2e;
           background: #f8f9fc; border: 1.5px solid #e8eaf0; border-radius: 11px;
           outline: none; transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+          min-width: 0;
         }
-        .sap-textarea { resize: none; }
+        .sap-textarea { resize: vertical; min-height: 110px; }
         .sap-select   { appearance: none; cursor: pointer; }
         .sap-input::placeholder, .sap-textarea::placeholder { color: #b8bdd0; }
         .sap-input:focus, .sap-textarea:focus, .sap-select:focus {
@@ -227,10 +273,10 @@ export default function SellerAddProduct({ editingPet = null, clearEditing = () 
         }
 
         .sap-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        @media (max-width: 480px) { .sap-two-col { grid-template-columns: 1fr; } }
 
+        /* ── Spec rows ── */
         .sap-spec-row { display: flex; gap: 8px; align-items: center; }
-        .sap-spec-row .sap-input { flex: 1; }
+        .sap-spec-row .sap-input { flex: 1; min-width: 0; }
 
         .sap-btn-remove {
           display: inline-flex; align-items: center; justify-content: center;
@@ -248,6 +294,86 @@ export default function SellerAddProduct({ editingPet = null, clearEditing = () 
           transition: background 0.15s, border-color 0.15s;
         }
         .sap-btn-add-spec:hover { background: #fff0e0; border-color: #f5a623; color: #c2590a; }
+
+        /* ════════════════════════════════
+           RESPONSIVE BREAKPOINTS
+        ════════════════════════════════ */
+
+        /* Tablet – collapse to single column, image becomes horizontal strip */
+        @media (max-width: 768px) {
+          .sap-root { padding: 0 0.75rem 2.5rem; margin: 1rem auto; }
+
+          .sap-shell {
+            grid-template-columns: 1fr;
+          }
+
+          /* On tablet, put left card items in a row */
+          .sap-left {
+            display: grid;
+            grid-template-columns: 160px 1fr;
+            gap: 1rem;
+            align-items: start;
+          }
+
+          /* Image takes left cell; stock toggle + submit stack in right cell */
+          .sap-left-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+          }
+
+          .sap-upload-box {
+            aspect-ratio: 1;
+            min-height: unset;
+          }
+
+          .sap-card { padding: 1rem; border-radius: 16px; }
+
+          .sap-header-icon { width: 36px; height: 36px; font-size: 1rem; border-radius: 10px; }
+          .sap-title    { font-size: 1.15rem; }
+          .sap-subtitle { font-size: 0.74rem; }
+        }
+
+        /* Mobile – fully stacked, image is a wide landscape banner */
+        @media (max-width: 540px) {
+          .sap-root { padding: 0 0.5rem 2rem; }
+
+          .sap-shell { gap: 0.9rem; }
+
+          .sap-left {
+            grid-template-columns: 1fr;   /* back to single column */
+          }
+
+          .sap-upload-box {
+            aspect-ratio: 16 / 9;          /* wide banner on mobile */
+            border-radius: 12px;
+          }
+
+          .sap-two-col { grid-template-columns: 1fr; }
+
+          /* Spec rows: label above value, no side-by-side */
+          .sap-spec-row {
+            flex-wrap: wrap;
+            gap: 6px;
+          }
+          .sap-spec-row .sap-input {
+            min-width: calc(50% - 24px);   /* still attempt 2 per row */
+          }
+
+          .sap-section { font-size: 0.7rem; }
+          .sap-input, .sap-textarea, .sap-select { font-size: 0.82rem; padding: 0.6rem 0.8rem; }
+          .sap-submit { font-size: 0.88rem; padding: 0.8rem; }
+
+          .sap-card { padding: 0.9rem; border-radius: 14px; }
+          .sap-right { gap: 0.9rem; }
+        }
+
+        /* Extra-small – spec inputs fully stacked */
+        @media (max-width: 380px) {
+          .sap-spec-row .sap-input { min-width: 100%; }
+          .sap-title    { font-size: 1rem; }
+          .sap-subtitle { font-size: 0.7rem; }
+        }
       `}</style>
 
       <motion.div className="sap-root" initial="hidden" animate="visible" variants={fadeUp}>
@@ -267,6 +393,7 @@ export default function SellerAddProduct({ editingPet = null, clearEditing = () 
             {/* ── LEFT: image · stock · submit ── */}
             <div className="sap-left">
 
+              {/* Image upload card */}
               <div className="sap-card">
                 <p className="sap-section">Product Image</p>
                 <label htmlFor="image0" style={{ display: "block", cursor: "pointer" }}>
@@ -276,7 +403,7 @@ export default function SellerAddProduct({ editingPet = null, clearEditing = () 
                       <img src={images[0]} alt="preview" />
                     ) : (
                       <div className="sap-upload-placeholder">
-                        <UploadCloud size={30} />
+                        <UploadCloud size={28} />
                         <p>Click to upload</p>
                         <span>JPG · PNG · WEBP · Max 5 MB</span>
                       </div>
@@ -286,21 +413,24 @@ export default function SellerAddProduct({ editingPet = null, clearEditing = () 
                 {uploading && <p className="sap-uploading">Uploading…</p>}
               </div>
 
-              <div className="sap-card" style={{ padding: "0.9rem 1.1rem" }}>
-                <div className="sap-toggle-row" style={{ border: "none", background: "none", padding: 0 }}>
-                  <span className="sap-toggle-label">Mark as in stock</span>
-                  <label className="sap-toggle">
-                    <input type="checkbox" checked={petForm.inStock}
-                      onChange={(e) => set("inStock", e.target.checked)} />
-                    <span className="sap-toggle-track" />
-                    <span className="sap-toggle-thumb" />
-                  </label>
+              {/* Stock toggle + submit — wrapped for tablet layout */}
+              <div className="sap-left-controls">
+                <div className="sap-card" style={{ padding: "0.75rem 1rem" }}>
+                  <div className="sap-toggle-row" style={{ border: "none", background: "none", padding: 0 }}>
+                    <span className="sap-toggle-label">Mark as in stock</span>
+                    <label className="sap-toggle">
+                      <input type="checkbox" checked={petForm.inStock}
+                        onChange={(e) => set("inStock", e.target.checked)} />
+                      <span className="sap-toggle-track" />
+                      <span className="sap-toggle-thumb" />
+                    </label>
+                  </div>
                 </div>
-              </div>
 
-              <button type="submit" className="sap-submit" disabled={uploading}>
-                {uploading ? "Uploading…" : petForm.id ? "Update Product" : "Add Product"}
-              </button>
+                <button type="submit" className="sap-submit" disabled={uploading}>
+                  {uploading ? "Uploading…" : petForm.id ? "Update Product" : "Add Product"}
+                </button>
+              </div>
             </div>
 
             {/* ── RIGHT: form sections ── */}
@@ -309,7 +439,7 @@ export default function SellerAddProduct({ editingPet = null, clearEditing = () 
               {/* Basic info */}
               <div className="sap-card">
                 <p className="sap-section">Basic Info</p>
-                <div style={{ display:"flex", flexDirection:"column", gap:"0.85rem" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
                   <div className="sap-two-col">
                     <div className="sap-field">
                       <label className="sap-label" htmlFor="product-name">Pet Name</label>
@@ -347,7 +477,7 @@ export default function SellerAddProduct({ editingPet = null, clearEditing = () 
                   <div className="sap-field">
                     <label className="sap-label" htmlFor="offer-price">
                       Offer Price (₹){" "}
-                      <span style={{ color:"#b8bdd0", fontWeight:400 }}>optional</span>
+                      <span style={{ color: "#b8bdd0", fontWeight: 400 }}>optional</span>
                     </label>
                     <input className="sap-input" id="offer-price" type="number" placeholder="0"
                       value={petForm.offerPrice} onChange={(e) => set("offerPrice", e.target.value)} min="0" />
@@ -359,11 +489,11 @@ export default function SellerAddProduct({ editingPet = null, clearEditing = () 
               <div className="sap-card">
                 <p className="sap-section">
                   Specifications{" "}
-                  <span style={{ color:"#b8bdd0", textTransform:"none", letterSpacing:0, fontWeight:400, fontSize:"0.72rem" }}>
+                  <span style={{ color: "#b8bdd0", textTransform: "none", letterSpacing: 0, fontWeight: 400, fontSize: "0.72rem" }}>
                     (optional)
                   </span>
                 </p>
-                <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   {petForm.specifications.map((spec, idx) => (
                     <div key={idx} className="sap-spec-row">
                       <input className="sap-input" type="text" placeholder="Label (e.g. Age)"

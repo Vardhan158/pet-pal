@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Mail, Phone, MapPin, Edit2, Save, X, Building, Hash } from "lucide-react";
+import { User, Mail, Phone, MapPin, Edit2, Save, X, Building, Hash, Camera, Loader } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -73,6 +73,14 @@ const css = `
     flex-wrap: wrap;
   }
 
+  /* ── Avatar with upload overlay ── */
+  .pp-avatar-wrap {
+    position: relative;
+    flex-shrink: 0;
+    width: 72px;
+    height: 72px;
+  }
+
   .pp-avatar {
     width: 72px; height: 72px;
     border-radius: 50%;
@@ -81,10 +89,53 @@ const css = `
     font-size: 1.75rem;
     font-weight: 800;
     color: #fff;
-    flex-shrink: 0;
     box-shadow: 0 4px 16px rgba(129,140,248,0.3);
     border: 3px solid #fff;
     outline: 3px solid #eef1ff;
+    overflow: hidden;
+    cursor: default;
+  }
+  .pp-avatar img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+  }
+
+  /* Camera overlay — only visible in edit mode */
+  .pp-avatar-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(99,102,241,0.72);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+    backdrop-filter: blur(2px);
+  }
+  .pp-avatar-wrap.editing .pp-avatar-overlay { opacity: 1; }
+  .pp-avatar-wrap.editing:hover .pp-avatar-overlay { opacity: 1; }
+  .pp-avatar-overlay span {
+    font-size: 0.48rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  /* Uploading spinner ring on avatar */
+  .pp-avatar-uploading::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    border-top-color: #818cf8;
+    animation: ppSpin 0.8s linear infinite;
   }
 
   .pp-avatar-info { flex: 1; min-width: 0; }
@@ -106,6 +157,12 @@ const css = `
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .pp-avatar-img-hint {
+    font-size: 0.68rem;
+    color: #a5b4fc;
+    margin: 4px 0 0;
+    font-weight: 500;
   }
 
   .pp-avatar-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
@@ -140,6 +197,7 @@ const css = `
     box-shadow: 0 4px 12px rgba(74,222,128,0.3);
   }
   .pp-btn-save:hover { opacity: 0.9; }
+  .pp-btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .pp-btn-cancel {
     background: #f1f3f8;
@@ -257,6 +315,10 @@ const css = `
   @keyframes ppSpin { to { transform: rotate(360deg); } }
 `;
 
+/* ─── Cloudinary config — replace with your own values ─── */
+const CLOUDINARY_CLOUD_NAME = "dujdjt4l7";   // 🔁 replace
+const CLOUDINARY_UPLOAD_PRESET = "petworld";
+
 /* ─── Field config ─── */
 const FIELDS = [
   { name: "name",    label: "Full Name",  type: "text",  icon: User,     placeholder: "Jane Doe" },
@@ -274,21 +336,31 @@ const getInitial = (name, email) =>
 export default function ProfilePage() {
   const { user }   = useAuth();
   const navigate   = useNavigate();
+  const fileRef    = useRef(null);
+
   const [isEditing, setIsEditing] = useState(false);
   const [profileData, setProfileData] = useState({
     name: "", email: "", phone: "", address: "", city: "", state: "", zipCode: "",
+    profileImage: "",
   });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving]   = useState(false);
+  const [loading, setLoading]         = useState(true);
+  const [saving, setSaving]           = useState(false);
+  const [uploading, setUploading]     = useState(false);
+  const [previewImage, setPreviewImage] = useState(""); // local preview before upload
 
   useEffect(() => {
     if (!user) { navigate("/login"); return; }
     (async () => {
       try {
-        const res = await axiosInstance.get("/users/profile");
+        const res = await axiosInstance.get("/auth/profile");
         setProfileData(res.data);
+        setPreviewImage(res.data.profileImage || "");
       } catch {
-        setProfileData({ name: user.name || "", email: user.email || "", phone: "", address: "", city: "", state: "", zipCode: "" });
+        setProfileData({
+          name: user.name || "", email: user.email || "",
+          phone: "", address: "", city: "", state: "", zipCode: "",
+          profileImage: "",
+        });
       } finally {
         setLoading(false);
       }
@@ -298,10 +370,60 @@ export default function ProfilePage() {
   const handleChange = (e) =>
     setProfileData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
+  /* ── Cloudinary upload ── */
+  const handleImageSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be under 5 MB.");
+      return;
+    }
+
+    // Instant local preview
+    const localUrl = URL.createObjectURL(file);
+    setPreviewImage(localUrl);
+
+    // Upload to Cloudinary
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+      formData.append("folder", "petworld/profiles");
+
+      const res = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        { method: "POST", body: formData }
+      );
+
+      const data = await res.json();
+      if (!res.ok || !data.secure_url) throw new Error(data.error?.message || "Upload failed");
+      const secureUrl = data.secure_url;
+
+      setProfileData((prev) => ({ ...prev, profileImage: secureUrl }));
+      setPreviewImage(secureUrl);
+      toast.success("Photo uploaded!");
+    } catch (err) {
+      toast.error(err.message || "Image upload failed. Please try again.");
+      // Revert preview to saved image
+      setPreviewImage(profileData.profileImage || "");
+    } finally {
+      setUploading(false);
+      // Reset file input so same file can be re-selected
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      await axiosInstance.put("/users/profile", profileData);
+      await axiosInstance.put("/auth/profile", profileData);
       toast.success("Profile updated successfully!");
       setIsEditing(false);
     } catch (err) {
@@ -309,6 +431,12 @@ export default function ProfilePage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    // Revert preview to last saved image
+    setPreviewImage(profileData.profileImage || "");
   };
 
   if (loading) return (
@@ -346,13 +474,52 @@ export default function ProfilePage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, delay: 0.08 }}
         >
-          <div className="pp-avatar">
-            {getInitial(profileData.name, profileData.email)}
+          {/* Hidden file input */}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={handleImageSelect}
+          />
+
+          {/* Avatar with camera overlay */}
+          <div
+            className={`pp-avatar-wrap${isEditing ? " editing" : ""}${uploading ? " pp-avatar-uploading" : ""}`}
+            onClick={() => isEditing && !uploading && fileRef.current?.click()}
+            title={isEditing ? "Click to change photo" : ""}
+          >
+            <div className="pp-avatar">
+              {previewImage ? (
+                <img src={previewImage} alt="Profile" />
+              ) : (
+                getInitial(profileData.name, profileData.email)
+              )}
+            </div>
+
+            {/* Overlay only visible in edit mode */}
+            {isEditing && (
+              <div className="pp-avatar-overlay">
+                {uploading ? (
+                  <Loader size={18} color="#fff" style={{ animation: "ppSpin 0.8s linear infinite" }} />
+                ) : (
+                  <>
+                    <Camera size={18} color="#fff" />
+                    <span>Change</span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="pp-avatar-info">
             <p className="pp-avatar-name">{profileData.name || "Your Name"}</p>
             <p className="pp-avatar-email">{profileData.email || "your@email.com"}</p>
+            {isEditing && (
+              <p className="pp-avatar-img-hint">
+                {uploading ? "Uploading…" : "Click photo to change · JPG/PNG · max 5 MB"}
+              </p>
+            )}
           </div>
 
           <div className="pp-avatar-actions">
@@ -380,14 +547,15 @@ export default function ProfilePage() {
                   <button
                     className="pp-btn-edit pp-btn-save"
                     onClick={handleSave}
-                    disabled={saving}
+                    disabled={saving || uploading}
                   >
                     <Save size={13} />
                     {saving ? "Saving…" : "Save"}
                   </button>
                   <button
                     className="pp-btn-edit pp-btn-cancel"
-                    onClick={() => setIsEditing(false)}
+                    onClick={handleCancelEdit}
+                    disabled={uploading}
                   >
                     <X size={13} /> Cancel
                   </button>

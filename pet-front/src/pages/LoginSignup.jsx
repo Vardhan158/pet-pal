@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useAuth } from "../context/AuthContext";
+import axiosInstance from "../api/utils/axiosInstance";
 
 import Dog1 from "../assets/Dog1.jpg";
 import Cat  from "../assets/Cat.jpg";
@@ -31,8 +31,6 @@ if (!document.head.querySelector("#auth-keyframes")) {
   `;
   document.head.appendChild(style);
 }
-
-const API_BASE = "https://pet-pal-x74f.onrender.com/api/auth";
 
 const SLIDES = [
   { img: Dog1, title: "Shop for Happy Paws",   emoji: "🐾", sub: "Find your perfect furry companion" },
@@ -274,12 +272,12 @@ export default function LoginSignup() {
     }
     setLoading(true);
     try {
-      const endpoint = isLogin ? "/login" : "/register";
+      const endpoint = isLogin ? "/auth/login" : "/auth/register";
       const payload  = isLogin
         ? { email: formData.email.trim(), password: formData.password.trim() }
         : { name: formData.name.trim(), email: formData.email.trim(), password: formData.password.trim() };
 
-      const { data } = await axios.post(`${API_BASE}${endpoint}`, payload, { headers: { "Content-Type": "application/json" } });
+      const { data } = await axiosInstance.post(endpoint, payload);
       if (!data?.token) throw new Error("Invalid server response");
 
       localStorage.setItem("token", data.token);
@@ -299,6 +297,7 @@ export default function LoginSignup() {
         setFormData({ name: "", email: "", password: "" });
       }
     } catch (err) {
+      console.error("❌ Auth error:", err.response?.data || err.message);
       const status  = err.response?.status;
       const message = err.response?.data?.message ||
         (status === 401 ? "Invalid email or password" : status === 409 ? "Account already exists" : "⚠️ Something went wrong. Please try again.");

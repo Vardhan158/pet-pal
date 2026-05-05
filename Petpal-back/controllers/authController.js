@@ -160,3 +160,78 @@ export const loginUser = async (req, res) => {
     });
   }
 };
+
+/* =====================================================
+   👤 GET USER PROFILE
+===================================================== */
+export const getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("-password");
+    
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      address: user.address,
+      city: user.city,
+      state: user.state,
+      zipCode: user.zipCode,
+      profileImage: user.profileImage,
+      role: user.role,
+    });
+  } catch (error) {
+    console.error("❌ Get Profile Error:", error.message);
+    return res.status(500).json({ message: "Server error fetching profile" });
+  }
+};
+
+/* =====================================================
+   ✏️ UPDATE USER PROFILE
+===================================================== */
+export const updateProfile = async (req, res) => {
+  try {
+    const { name, phone, address, city, state, zipCode, profileImage } = req.body;
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        name: name || undefined,
+        phone: phone || undefined,
+        address: address || undefined,
+        city: city || undefined,
+        state: state || undefined,
+        zipCode: zipCode || undefined,
+        profileImage: profileImage !== undefined ? profileImage : undefined,
+      },
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json({
+      message: "Profile updated successfully",
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        address: user.address,
+        city: user.city,
+        state: user.state,
+        zipCode: user.zipCode,
+        profileImage: user.profileImage,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Update Profile Error:", error.message);
+    return res.status(500).json({ message: "Server error updating profile" });
+  }
+};
