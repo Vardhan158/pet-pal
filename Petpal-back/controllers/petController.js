@@ -70,7 +70,7 @@ export const reviewPet = async (req, res) => {
       pet.status = "approved";
       pet.rejectionReason = "";
 
-      // ✅ Send approval email
+      // ✅ Send approval email (non-blocking - fire and forget)
       const approveMessage = `
         <h2>Hi ${pet.seller.name},</h2>
         <p>Your item "<strong>${pet.name}</strong>" has been <strong>approved</strong> 🎉</p>
@@ -79,22 +79,25 @@ export const reviewPet = async (req, res) => {
         <p>🐾 Warm regards,<br/>PetPal Admin Team</p>
       `;
 
-      await sendEmail(pet.seller.email, "🎉 PetPal Item Approved!", approveMessage);
+      // Don't await - send in background
+      sendEmail(pet.seller.email, "🎉 PetPal Item Approved!", approveMessage).catch(err =>
+        console.error("Email send error:", err.message)
+      );
 
-      // 🔔 Notify seller that product is approved
-      await createNotification(
+      // 🔔 Notify seller that product is approved (non-blocking)
+      createNotification(
         pet.seller._id,
         "product",
         "✅ Product Approved",
         `Your product "${pet.name}" has been approved and is now live!`,
         pet._id.toString(),
         "pet"
-      );
+      ).catch(err => console.error("Notification error:", err.message));
     } else if (action === "reject") {
       pet.status = "rejected";
       pet.rejectionReason = reason || "Not approved by admin";
 
-      // ❌ Send rejection email
+      // ❌ Send rejection email (non-blocking - fire and forget)
       const rejectMessage = `
         <h2>Hi ${pet.seller.name},</h2>
         <p>We're sorry! Your item "<strong>${pet.name}</strong>" has been <strong>rejected</strong>.</p>
@@ -104,17 +107,20 @@ export const reviewPet = async (req, res) => {
         <p>🐾 Regards,<br/>PetPal Admin Team</p>
       `;
 
-      await sendEmail(pet.seller.email, "❌ PetPal Item Rejected", rejectMessage);
+      // Don't await - send in background
+      sendEmail(pet.seller.email, "❌ PetPal Item Rejected", rejectMessage).catch(err =>
+        console.error("Email send error:", err.message)
+      );
 
-      // 🔔 Notify seller that product is rejected
-      await createNotification(
+      // 🔔 Notify seller that product is rejected (non-blocking)
+      createNotification(
         pet.seller._id,
         "product",
         "❌ Product Rejected",
         `Your product "${pet.name}" was rejected. Reason: ${reason || "Not approved by admin"}`,
         pet._id.toString(),
         "pet"
-      );
+      ).catch(err => console.error("Notification error:", err.message));
     } else {
       return res.status(400).json({ message: "Invalid action. Use 'approve' or 'reject'." });
     }

@@ -1,8 +1,13 @@
 // src/api/utils/axiosInstance.js
 import axios from "axios";
 
+// Use localhost in development, production URL in production
+const baseURL = import.meta.env.DEV 
+  ? "http://localhost:5001/api"
+  : "https://pet-pal-x74f.onrender.com/api";
+
 const axiosInstance = axios.create({
-  baseURL: "https://pet-pal-x74f.onrender.com/api",
+  baseURL,
   withCredentials: false,
 });
 

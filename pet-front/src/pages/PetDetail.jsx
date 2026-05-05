@@ -519,27 +519,64 @@ export default function PetDetail() {
       setProcessingPayment(true);
       const loaded = await loadRazorpay();
       if (!loaded) { toast.error("Razorpay SDK failed to load"); return; }
+      
+      const petId = pet._id || pet.id;
       const amount = pet.offerPrice && pet.offerPrice > 0 ? pet.offerPrice : pet.price;
-      const { data } = await axiosInstance.post("/payments/create-order", { amount });
-      const order = data?.order || data;
-      if (!order?.id || !data?.key) throw new Error("Failed to create order");
+      
+      // ✅ Step 1: Create Razorpay order
+      const { data: paymentData } = await axiosInstance.post("/payments/create-order", { amount });
+      const razorpayOrder = paymentData?.order || paymentData;
+      if (!razorpayOrder?.id || !paymentData?.key) throw new Error("Failed to create Razorpay order");
+      
+      // ✅ Step 2: Create order in database with razorpay order ID
+      const { data: orderData } = await axiosInstance.post("/orders/place", {
+        petId,
+        quantity: 1,
+        totalPrice: amount,
+        paymentMethod: "Razorpay",
+        razorpayOrderId: razorpayOrder.id,
+        address: { name: user.name, email: user.email, mobile: user.phone },
+      });
+      
+      if (!orderData.success) throw new Error("Failed to create order");
+      const dbOrder = orderData.order;
+      
+      // ✅ Step 3: Open Razorpay payment
       const rz = new window.Razorpay({
-        key: data.key, amount: order.amount, currency: order.currency || "INR",
-        name: "PetPal", description: `Purchase of ${pet.title}`, image: FALLBACK_IMAGE,
-        order_id: order.id,
+        key: paymentData.key,
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency || "INR",
+        name: "PetPal",
+        description: `Purchase of ${pet.title}`,
+        image: FALLBACK_IMAGE,
+        order_id: razorpayOrder.id,
         handler: async (response) => {
           try {
+            // ✅ Step 4: Verify payment
             await axiosInstance.post("/payments/verify-payment", {
-              ...response, petId: pet._id || pet.id, amount,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
             });
+            
+            // ✅ Step 5: Mark order as paid
+            await axiosInstance.put("/orders/mark-paid", {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+            });
+            
             toast.success("Payment successful 🎉");
             navigate("/orders");
-          } catch { toast.error("Payment verification failed"); }
+          } catch (err) {
+            toast.error(err?.response?.data?.message || "Payment verification failed");
+          }
         },
         prefill: { name: user.name || "Pet Lover", email: user.email || "", contact: user.phone || "" },
         theme: { color: "#6366f1" },
       });
-      rz.on("payment.failed", () => toast.error("Payment failed"));
+      rz.on("payment.failed", () => {
+        toast.error("Payment failed");
+      });
       rz.open();
     } catch (err) {
       toast.error(err?.response?.data?.error || err?.response?.data?.message || "Failed to process payment");
