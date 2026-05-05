@@ -26,7 +26,7 @@ const app = express();
 app.use(express.json());
 app.use(
   cors({
-    origin: "https://pet-pal-front.onrender.com/",
+    origin: "https://pet-pal-front.onrender.com",
     credentials: true,
   })
 );
