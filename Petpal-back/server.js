@@ -23,12 +23,10 @@ dotenv.config();
 const app = express();
 
 /* ================= MIDDLEWARE ================= */
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",                 // ✅ local frontend
-      "https://pet-pal-front.onrender.com"     // ✅ deployed frontend
-    ],
     origin: (origin, callback) => {
       const allowedOrigins = [
         "https://pet-pal-front.onrender.com",
@@ -65,7 +63,7 @@ app.use("/api/offers", offerRoutes);
 app.use("/api/notifications", notificationRoutes);
 
 /* ================= SERVER BOOTSTRAP ================= */
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5008;
 
 const startServer = async () => {
   try {
