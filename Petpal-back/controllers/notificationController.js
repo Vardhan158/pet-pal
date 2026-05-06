@@ -67,11 +67,38 @@ export const getNotifications = async (req, res) => {
   }
 };
 
+/* 🔔 GET ALL NOTIFICATIONS FOR ADMIN */
+export const getAdminNotifications = async (req, res) => {
+  try {
+    const adminId = req.user._id;
+    const notifications = await Notification.find({ 
+      admin: adminId,
+      recipientType: "admin"
+    })
+      .populate("seller", "name email")
+      .sort({ createdAt: -1 })
+      .limit(100);
+
+    res.status(200).json({
+      success: true,
+      notifications,
+      count: notifications.length,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching admin notifications:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching admin notifications",
+    });
+  }
+};
+
 /* ✅ MARK NOTIFICATION AS READ */
 export const markAsRead = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user._id;
+    const userRole = req.user.role;
 
     const notification = await Notification.findByIdAndUpdate(
       id,
@@ -86,12 +113,21 @@ export const markAsRead = async (req, res) => {
       });
     }
 
-    // Verify ownership
-    if (notification.user.toString() !== userId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorized",
-      });
+    // Verify ownership - check if user owns it or admin owns it
+    if (notification.recipientType === "admin") {
+      if (!notification.admin || notification.admin.toString() !== userId.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "Unauthorized",
+        });
+      }
+    } else {
+      if (!notification.user || notification.user.toString() !== userId.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "Unauthorized",
+        });
+      }
     }
 
     res.status(200).json({
@@ -123,12 +159,21 @@ export const deleteNotification = async (req, res) => {
       });
     }
 
-    // Verify ownership
-    if (notification.user.toString() !== userId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorized",
-      });
+    // Verify ownership - check if user owns it or admin owns it
+    if (notification.recipientType === "admin") {
+      if (!notification.admin || notification.admin.toString() !== userId.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "Unauthorized",
+        });
+      }
+    } else {
+      if (!notification.user || notification.user.toString() !== userId.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "Unauthorized",
+        });
+      }
     }
 
     await Notification.findByIdAndDelete(id);
@@ -147,18 +192,44 @@ export const deleteNotification = async (req, res) => {
 };
 
 /* 📢 CREATE NOTIFICATION (Internal Helper) */
-export const createNotification = async (userId, type, title, message, relatedId = null, relatedType = "other") => {
+export const createNotification = async (
+  userId = null,
+  type,
+  title,
+  message,
+  relatedId = null,
+  relatedType = "other",
+  sellerId = null,
+  adminId = null,
+  recipientType = "user"
+) => {
   try {
-    const notification = await Notification.create({
-      user: userId,
+    const notificationData = {
       type,
       title,
       message,
       relatedId,
       relatedType,
       read: false,
-    });
-    sendNotificationToUser(userId, notification);
+      recipientType,
+    };
+
+    // Set recipient based on type
+    if (recipientType === "admin" && adminId) {
+      notificationData.admin = adminId;
+      notificationData.seller = sellerId; // Track which seller submitted
+    } else {
+      notificationData.user = userId;
+    }
+
+    const notification = await Notification.create(notificationData);
+    
+    // Send real-time notification if user
+    if (recipientType === "user" && userId) {
+      sendNotificationToUser(userId, notification);
+    }
+    // TODO: Add admin real-time notification support here if needed
+    
     return notification;
   } catch (error) {
     console.error("❌ Error creating notification:", error);

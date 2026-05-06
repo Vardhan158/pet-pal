@@ -1,6 +1,7 @@
 // controllers/petController.js
 import Pet from "../models/petModel.js";
 import Seller from "../models/sellerModel.js";
+import Admin from "../models/adminModel.js";
 import { sendEmail } from "../utils/sendEmail.js";
 import { createNotification } from "./notificationController.js";
 
@@ -34,14 +35,35 @@ export const addPet = async (req, res) => {
       specifications: Array.isArray(specifications) ? specifications : [],
     });
 
-    // 🔔 Notify seller (non-blocking)
+    // 🔔 Notify ALL ADMINS for approval review (non-blocking)
+    const allAdmins = await Admin.find();
+    if (allAdmins.length > 0) {
+      allAdmins.forEach(admin => {
+        createNotification(
+          null,
+          "seller-submission",
+          "📦 New Product Submission",
+          `Seller has submitted product "${name}" for review`,
+          pet._id.toString(),
+          "pet",
+          req.user._id,
+          admin._id,
+          "admin"
+        ).catch(err => console.error("Notification error:", err.message));
+      });
+    }
+
+    // ✅ Notify seller that submission was received
     createNotification(
       req.user._id,
       "product",
       "📦 Product Submitted",
       `Your product "${name}" has been submitted for admin review`,
       pet._id.toString(),
-      "pet"
+      "pet",
+      null,
+      null,
+      "user"
     ).catch(err => console.error("Notification error:", err.message));
 
     res.status(201).json({

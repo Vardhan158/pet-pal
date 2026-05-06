@@ -9,6 +9,7 @@ import {
   getAllUsers,
 } from "../controllers/adminController.js";
 import { reviewPet } from "../controllers/petController.js"; // ✅ Approve/Reject handler
+import { getAdminNotifications, markAsRead } from "../controllers/notificationController.js";
 import { protect, adminOnly } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
@@ -39,5 +40,12 @@ router.get("/pets/rejected", protect, adminOnly, getRejectedItems);
 
 // ✅ Admin Approves / Rejects a Pet
 router.put("/review/:id", protect, adminOnly, reviewPet);
+
+/* ================================
+   🔔 ADMIN NOTIFICATIONS
+   (For seller product submissions)
+================================ */
+router.get("/notifications", protect, adminOnly, getAdminNotifications);
+router.put("/notifications/:id/read", protect, adminOnly, markAsRead);
 
 export default router;

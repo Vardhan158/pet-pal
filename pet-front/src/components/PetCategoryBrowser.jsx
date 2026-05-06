@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
-import { Heart, PawPrint, Search, ShoppingCart, SlidersHorizontal } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Heart, PawPrint, Search, ShoppingCart, SlidersHorizontal, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import axiosInstance from "../api/utils/axiosInstance";
@@ -66,6 +66,7 @@ if (!document.getElementById("pcb-poppins")) {
       font-size: 0.7rem; font-weight: 600;
       background: #E0F2FE; color: #0369A1;
       letter-spacing: 0.02em;
+      white-space: nowrap;
     }
 
     .pcb-cart-fab {
@@ -101,12 +102,55 @@ if (!document.getElementById("pcb-poppins")) {
     }
     .pcb-wishlist-btn:hover { transform: scale(1.2); }
 
+    /* ── Filter toggle button: only on mobile ── */
     .pcb-filter-toggle {
       display: none;
     }
     @media (max-width: 767px) {
-      .pcb-filter-toggle { display: flex; }
+      .pcb-filter-toggle {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
     }
+
+    /* ── Sidebar: hidden on mobile ── */
+    .pcb-sidebar-wrap {
+      display: block;
+    }
+    @media (max-width: 767px) {
+      .pcb-sidebar-wrap {
+        display: none;
+      }
+    }
+
+    /* ── Mobile filter drawer overlay ── */
+    .pcb-drawer-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 200;
+      backdrop-filter: blur(2px);
+    }
+    .pcb-drawer {
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      width: 290px;
+      background: #fff;
+      z-index: 210;
+      overflow-y: auto;
+      box-shadow: 4px 0 32px rgba(0,0,0,0.14);
+    }
+    .pcb-drawer-close {
+      position: absolute;
+      top: 14px; right: 14px;
+      background: #F1F5F9; border: none;
+      border-radius: 50%; width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: #6B7280;
+      transition: background 0.15s;
+      z-index: 1;
+    }
+    .pcb-drawer-close:hover { background: #E2E8F0; }
   `;
   document.head.appendChild(s);
 }
@@ -227,45 +271,92 @@ export default function PetCategoryBrowser({
     }
   };
 
+  const filterProps = {
+    title, itemLabel,
+    accentClass, accentSoftClass,
+    accentRingClass, summaryGradientClass,
+    showFilters, setShowFilters,
+    priceRange, maxPrice,
+    onPriceChange: setPriceRange,
+    totalCount: pets.length,
+    availableCount: filteredPets.length,
+  };
+
   return (
     <div className="pcb-root" style={{
       minHeight: "100vh", display: "flex", flexDirection: "row",
       background: "linear-gradient(135deg, #F0F9FF 0%, #FFFFFF 50%, #ECFEFF 100%)",
     }}>
-      {/* Sidebar Filter */}
-      <PetCategoryFilter
-        title={title} itemLabel={itemLabel}
-        accentClass={accentClass} accentSoftClass={accentSoftClass}
-        accentRingClass={accentRingClass} summaryGradientClass={summaryGradientClass}
-        showFilters={showFilters} setShowFilters={setShowFilters}
-        priceRange={priceRange} maxPrice={maxPrice}
-        onPriceChange={setPriceRange}
-        totalCount={pets.length} availableCount={filteredPets.length}
-      />
 
-      {/* Main Content */}
+      {/* ── Desktop sidebar (hidden on mobile via CSS) ── */}
+      <div className="pcb-sidebar-wrap">
+        <PetCategoryFilter {...filterProps} />
+      </div>
+
+      {/* ── Mobile filter drawer ── */}
+      <AnimatePresence>
+        {showFilters && (
+          <>
+            <motion.div
+              className="pcb-drawer-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setShowFilters(false)}
+            />
+            <motion.div
+              className="pcb-drawer"
+              initial={{ x: -300 }}
+              animate={{ x: 0 }}
+              exit={{ x: -300 }}
+              transition={{ type: "spring", stiffness: 320, damping: 30 }}
+            >
+              <button
+                className="pcb-drawer-close"
+                onClick={() => setShowFilters(false)}
+                aria-label="Close filters"
+              >
+                <X size={15} />
+              </button>
+              {/* Render same filter component inside drawer */}
+              <PetCategoryFilter {...filterProps} />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Main Content ── */}
       <div style={{ flex: 1, padding: "40px 28px 80px", maxWidth: "100%" }}>
 
         {/* Header */}
         <motion.div variants={fadeInUp} initial="hidden" animate="visible"
           transition={{ duration: 0.5 }} style={{ textAlign: "center", marginBottom: 40 }}>
 
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8,
+          <div style={{
+            display: "inline-flex", alignItems: "center", gap: 8,
             background: "#E0F2FE", borderRadius: 999, padding: "5px 16px",
-            marginBottom: 14, border: "1px solid #BAE6FD" }}>
+            marginBottom: 14, border: "1px solid #BAE6FD",
+          }}>
             <PawPrint size={14} color="#0284C7" />
-            <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#0369A1",
-              letterSpacing: "0.06em", textTransform: "uppercase" }}>
+            <span style={{
+              fontSize: "0.75rem", fontWeight: 600, color: "#0369A1",
+              letterSpacing: "0.06em", textTransform: "uppercase",
+            }}>
               {title}
             </span>
           </div>
 
-          <h1 style={{ fontSize: "clamp(1.7rem, 4vw, 2.6rem)", fontWeight: 800,
-            color: "#0C1A2E", margin: "0 0 10px", letterSpacing: "-0.03em", lineHeight: 1.15 }}>
+          <h1 style={{
+            fontSize: "clamp(1.7rem, 4vw, 2.6rem)", fontWeight: 800,
+            color: "#0C1A2E", margin: "0 0 10px", letterSpacing: "-0.03em", lineHeight: 1.15,
+          }}>
             Explore <span style={{ color: "#0EA5E9" }}>{title}</span>
           </h1>
-          <p style={{ color: "#6B7280", fontSize: "0.95rem", maxWidth: 520,
-            margin: "0 auto 28px", lineHeight: 1.7, fontWeight: 400 }}>
+          <p style={{
+            color: "#6B7280", fontSize: "0.95rem", maxWidth: 520,
+            margin: "0 auto 28px", lineHeight: 1.7, fontWeight: 400,
+          }}>
             Browse verified listings, compare prices, and find your perfect companion.
           </p>
 
@@ -284,15 +375,19 @@ export default function PetCategoryBrowser({
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            {/* Mobile filter toggle */}
-            <button className="pcb-filter-toggle" onClick={() => setShowFilters(true)}
+
+            {/* Mobile filter toggle button */}
+            <button
+              className="pcb-filter-toggle"
+              onClick={() => setShowFilters(true)}
               style={{
                 padding: "10px 14px", borderRadius: 12,
                 border: "1.5px solid #E5E7EB", background: "#fff",
-                cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
-                fontSize: "0.82rem", fontWeight: 600, color: "#374151",
+                cursor: "pointer", fontSize: "0.82rem",
+                fontWeight: 600, color: "#374151",
                 fontFamily: "'Poppins', sans-serif",
-              }}>
+              }}
+            >
               <SlidersHorizontal size={15} /> Filters
             </button>
           </div>
@@ -300,14 +395,20 @@ export default function PetCategoryBrowser({
           {/* Result count */}
           {!loading && (
             <p style={{ marginTop: 14, fontSize: "0.8rem", color: "#9CA3AF", fontWeight: 500 }}>
-              Showing <strong style={{ color: "#0EA5E9" }}>{filteredPets.length}</strong> of {pets.length} {itemLabel.toLowerCase()}
+              Showing{" "}
+              <strong style={{ color: "#0EA5E9" }}>{filteredPets.length}</strong>
+              {" "}of {pets.length} {itemLabel.toLowerCase()}
             </p>
           )}
         </motion.div>
 
         {/* Grid */}
         {loading ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 22 }}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
+            gap: 22,
+          }}>
             {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
         ) : filteredPets.length === 0 ? (
@@ -320,7 +421,11 @@ export default function PetCategoryBrowser({
         ) : (
           <motion.div
             variants={stagger} initial="hidden" animate="visible"
-            style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 22 }}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
+              gap: 22,
+            }}
           >
             {filteredPets.map((pet, index) => {
               const isLiked = wishlist.some((i) => i._id === pet._id);
@@ -337,8 +442,10 @@ export default function PetCategoryBrowser({
                   onClick={() => navigate(`/pets/${pet._id}`)}
                 >
                   {/* Image */}
-                  <div style={{ position: "relative", height: 196, overflow: "hidden",
-                    background: "linear-gradient(135deg, #E0F2FE, #CFFAFE)" }}>
+                  <div style={{
+                    position: "relative", height: 196, overflow: "hidden",
+                    background: "linear-gradient(135deg, #E0F2FE, #CFFAFE)",
+                  }}>
                     <motion.img
                       src={image} alt={pet.name}
                       style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
@@ -377,10 +484,16 @@ export default function PetCategoryBrowser({
 
                   {/* Body */}
                   <div style={{ padding: "16px 18px 18px", flex: 1, display: "flex", flexDirection: "column" }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-                      <h2 style={{ margin: 0, fontSize: "0.97rem", fontWeight: 700,
+                    <div style={{
+                      display: "flex", alignItems: "flex-start",
+                      justifyContent: "space-between", gap: 8,
+                    }}>
+                      <h2 style={{
+                        margin: 0, fontSize: "0.97rem", fontWeight: 700,
                         color: "#0C1A2E", lineHeight: 1.3,
-                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                        overflow: "hidden", textOverflow: "ellipsis",
+                        whiteSpace: "nowrap", flex: 1,
+                      }}>
                         {pet.name}
                       </h2>
                       <span className="pcb-badge">{pet.category}</span>
@@ -396,12 +509,16 @@ export default function PetCategoryBrowser({
                         ))
                       ) : (
                         <>
-                          {pet.breed && <p style={{ margin: "0 0 4px", fontSize: "0.76rem", color: "#6B7280" }}>
-                            <span style={{ fontWeight: 600, color: "#374151" }}>Breed:</span> {pet.breed}
-                          </p>}
-                          {pet.age && <p style={{ margin: 0, fontSize: "0.76rem", color: "#6B7280" }}>
-                            <span style={{ fontWeight: 600, color: "#374151" }}>Age:</span> {pet.age}
-                          </p>}
+                          {pet.breed && (
+                            <p style={{ margin: "0 0 4px", fontSize: "0.76rem", color: "#6B7280" }}>
+                              <span style={{ fontWeight: 600, color: "#374151" }}>Breed:</span> {pet.breed}
+                            </p>
+                          )}
+                          {pet.age && (
+                            <p style={{ margin: 0, fontSize: "0.76rem", color: "#6B7280" }}>
+                              <span style={{ fontWeight: 600, color: "#374151" }}>Age:</span> {pet.age}
+                            </p>
+                          )}
                         </>
                       )}
                     </div>
@@ -409,8 +526,10 @@ export default function PetCategoryBrowser({
                     {/* Price */}
                     <div style={{ marginTop: 14, display: "flex", alignItems: "baseline", gap: 7 }}>
                       {hasDiscount && (
-                        <span style={{ fontSize: "0.78rem", color: "#9CA3AF",
-                          textDecoration: "line-through", fontWeight: 500 }}>
+                        <span style={{
+                          fontSize: "0.78rem", color: "#9CA3AF",
+                          textDecoration: "line-through", fontWeight: 500,
+                        }}>
                           ₹{Number(pet.price || 0).toLocaleString()}
                         </span>
                       )}
